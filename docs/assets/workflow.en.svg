@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 420" role="img" aria-labelledby="t d">
+  <title>Promote workflow (diagram)</title>
+  <desc>Diagram: write a contract, mark it under review, run a read-only secondary-model review, then revise until pass or exhaustion. Not a product screenshot.</desc>
+  <rect width="980" height="420" rx="20" fill="#f8fafc"/>
+  <g font-family="ui-sans-serif, system-ui, sans-serif">
+    <rect x="40" y="40" width="170" height="80" rx="12" fill="#ecfdf5" stroke="#14b8a6"/>
+    <text x="125" y="75" text-anchor="middle" font-size="14" fill="#134e4a">1 Main chat writes</text>
+    <text x="125" y="98" text-anchor="middle" font-size="12" fill="#0f766e">END marker present</text>
+    <rect x="250" y="40" width="170" height="80" rx="12" fill="#eef2ff" stroke="#8b5cf6"/>
+    <text x="335" y="75" text-anchor="middle" font-size="14" fill="#312e81">2 Mark in review</text>
+    <text x="335" y="98" text-anchor="middle" font-size="12" fill="#4338ca">Draft is not final</text>
+    <rect x="460" y="40" width="210" height="80" rx="12" fill="#ecfdf5" stroke="#14b8a6"/>
+    <text x="565" y="75" text-anchor="middle" font-size="14" fill="#134e4a">3 Secondary fork/spawn</text>
+    <text x="565" y="98" text-anchor="middle" font-size="12" fill="#0f766e">Read-only repo check</text>
+    <rect x="710" y="40" width="230" height="80" rx="12" fill="#eef2ff" stroke="#8b5cf6"/>
+    <text x="825" y="75" text-anchor="middle" font-size="14" fill="#312e81">4 Notes return</text>
+    <text x="825" y="98" text-anchor="middle" font-size="12" fill="#4338ca">Steer a revision</text>
+    <rect x="140" y="200" width="280" height="80" rx="12" fill="#ecfdf5" stroke="#14b8a6"/>
+    <text x="280" y="235" text-anchor="middle" font-size="14" fill="#134e4a">Pass → mark final</text>
+    <text x="280" y="258" text-anchor="middle" font-size="12" fill="#0f766e">Stop the loop</text>
+    <rect x="500" y="200" width="340" height="80" rx="12" fill="#fff7ed" stroke="#f97316"/>
+    <text x="670" y="235" text-anchor="middle" font-size="14" fill="#9a3412">Fail → up to N revisions</text>
+    <text x="670" y="258" text-anchor="middle" font-size="12" fill="#c2410c">Exhausted → not qualified</text>
+    <text x="40" y="340" font-size="13" fill="#334155">The prompt/promote skill only compiles contracts. This plugin reviews drafts written in the current chat.</text>
+    <text x="40" y="368" font-size="13" fill="#64748b">Diagram, not a product screenshot.</text>
+  </g>
+</svg>

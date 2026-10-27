@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 350" role="img" aria-labelledby="title desc">
+  <title>Promote</title>
+  <desc>示意横幅：当前对话写出执行契约后，由次模型只读审核再回到主模型改稿。</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1220"/>
+      <stop offset="1" stop-color="#12332c"/>
+    </linearGradient>
+  </defs>
+  <rect width="1120" height="350" rx="28" fill="url(#bg)"/>
+  <circle cx="980" cy="70" r="90" fill="#14b8a6" opacity="0.12"/>
+  <circle cx="160" cy="300" r="70" fill="#7c3aed" opacity="0.12"/>
+  <rect x="72" y="108" width="220" height="134" rx="18" fill="#152033" stroke="#2dd4bf" stroke-width="2"/>
+  <text x="182" y="168" text-anchor="middle" fill="#e2e8f0" font-family="ui-sans-serif, system-ui, sans-serif" font-size="18">主对话写作</text>
+  <text x="182" y="198" text-anchor="middle" fill="#94a3b8" font-family="ui-sans-serif, system-ui, sans-serif" font-size="13">契约初稿</text>
+  <path d="M304 175h86" stroke="#2dd4bf" stroke-width="3"/>
+  <rect x="402" y="108" width="250" height="134" rx="18" fill="#152033" stroke="#a78bfa" stroke-width="2"/>
+  <text x="527" y="168" text-anchor="middle" fill="#e2e8f0" font-family="ui-sans-serif, system-ui, sans-serif" font-size="18">次模型只读审核</text>
+  <text x="527" y="198" text-anchor="middle" fill="#94a3b8" font-family="ui-sans-serif, system-ui, sans-serif" font-size="13">查仓 · 挑错 · 不改文件</text>
+  <path d="M664 175h86" stroke="#2dd4bf" stroke-width="3"/>
+  <rect x="762" y="108" width="280" height="134" rx="18" fill="#152033" stroke="#2dd4bf" stroke-width="2"/>
+  <text x="902" y="168" text-anchor="middle" fill="#e2e8f0" font-family="ui-sans-serif, system-ui, sans-serif" font-size="18">主模型改稿</text>
+  <text x="902" y="198" text-anchor="middle" fill="#94a3b8" font-family="ui-sans-serif, system-ui, sans-serif" font-size="13">通过才标终稿</text>
+  <text x="72" y="58" fill="#2dd4bf" font-family="ui-sans-serif, system-ui, sans-serif" font-size="22" font-weight="700">Promote</text>
+  <text x="72" y="86" fill="#cbd5e1" font-family="ui-sans-serif, system-ui, sans-serif" font-size="16">执行契约的次模型审核，而不是把初稿当成终稿</text>
+</svg>

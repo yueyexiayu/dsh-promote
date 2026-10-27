@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 420" role="img" aria-labelledby="t d">
+  <title>Promote 工作流程示意</title>
+  <desc>示意：写作、检测标记、只读审核、改稿、终稿或未通过。不是产品截图。</desc>
+  <rect width="980" height="420" rx="20" fill="#f8fafc"/>
+  <g font-family="ui-sans-serif, system-ui, sans-serif">
+    <rect x="40" y="40" width="170" height="80" rx="12" fill="#ecfdf5" stroke="#14b8a6"/>
+    <text x="125" y="75" text-anchor="middle" font-size="14" fill="#134e4a">1 主对话写出契约</text>
+    <text x="125" y="98" text-anchor="middle" font-size="12" fill="#0f766e">含 END 标记</text>
+    <rect x="250" y="40" width="170" height="80" rx="12" fill="#eef2ff" stroke="#8b5cf6"/>
+    <text x="335" y="75" text-anchor="middle" font-size="14" fill="#312e81">2 立刻标审核中</text>
+    <text x="335" y="98" text-anchor="middle" font-size="12" fill="#4338ca">不把初稿当终稿</text>
+    <rect x="460" y="40" width="210" height="80" rx="12" fill="#ecfdf5" stroke="#14b8a6"/>
+    <text x="565" y="75" text-anchor="middle" font-size="14" fill="#134e4a">3 次模型 fork/spawn</text>
+    <text x="565" y="98" text-anchor="middle" font-size="12" fill="#0f766e">只读查仓 · 结构化意见</text>
+    <rect x="710" y="40" width="230" height="80" rx="12" fill="#eef2ff" stroke="#8b5cf6"/>
+    <text x="825" y="75" text-anchor="middle" font-size="14" fill="#312e81">4 意见回主对话</text>
+    <text x="825" y="98" text-anchor="middle" font-size="12" fill="#4338ca">steer 改稿</text>
+    <rect x="140" y="200" width="280" height="80" rx="12" fill="#ecfdf5" stroke="#14b8a6"/>
+    <text x="280" y="235" text-anchor="middle" font-size="14" fill="#134e4a">通过 → 标明终稿</text>
+    <text x="280" y="258" text-anchor="middle" font-size="12" fill="#0f766e">停止循环</text>
+    <rect x="500" y="200" width="340" height="80" rx="12" fill="#fff7ed" stroke="#f97316"/>
+    <text x="670" y="235" text-anchor="middle" font-size="14" fill="#9a3412">不通过 → 最多 N 轮改稿</text>
+    <text x="670" y="258" text-anchor="middle" font-size="12" fill="#c2410c">用尽则标明未通过</text>
+    <text x="40" y="340" font-size="13" fill="#334155">prompt/promote skill 只负责编译契约，不执行任务。本插件审核当前对话写出的契约。</text>
+    <text x="40" y="368" font-size="13" fill="#64748b">示意图，不是实际界面截图。</text>
+  </g>
+</svg>
