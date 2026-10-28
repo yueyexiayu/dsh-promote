@@ -4,7 +4,7 @@
   <p><strong>Write an execution contract in the current chat. A secondary model reviews it read-only. Do not treat a draft as final until it passes.</strong></p>
   <p>A DeepSeek Harness desktop plugin, plus the <code>prompt</code> / promote skill that compiles contracts.</p>
   <p><a href="README.md">简体中文</a> · <strong>English</strong></p>
-  <p><a href="LICENSE">MIT</a> · version 0.1.1</p>
+  <p><a href="LICENSE">MIT</a> · version 0.1.2</p>
   <p><a href="#features">Features</a> · <a href="#how-it-works">How it works</a> · <a href="#quick-start">Quick start</a> · <a href="#configuration">Configuration</a> · <a href="#validation">Validation</a> · <a href="#faq">FAQ</a></p>
 </div>
 
@@ -120,13 +120,15 @@ From the plugin directory, with local Node (`/usr/local/bin/node`):
 /usr/local/bin/node --test
 ```
 
-0.1.1 covers model collision, missing config, no double review of the same hash, stale result discard, quoted/inline markers ignored, fenced contracts reviewed, injected messages that do not loop, and reasoning effort in `agentOptions`. Unit tests do not replace desktop visibility after Cmd+Q.
+0.1.2 covers model collision, missing config, no double review of the same hash, stale result discard, quoted/inline markers ignored, fenced contracts reviewed, unsaved dropdowns not overwritten by polling, injected messages that do not loop, and reasoning effort in `agentOptions`. Unit tests do not replace desktop visibility after Cmd+Q.
 
 ## FAQ
 
 **I changed the files and the UI did not?** Quit fully with Cmd+Q. Reload is not enough.
 
 **The sidebar says it is unconfigured?** Saving is required even if the dropdowns show values.
+
+**The model I picked snapped back?** From 0.1.2, an unsaved dropdown is not overwritten by the 4-second refresh. You still have to click Save; review keeps using the last saved A/B until then.
 
 **A is the same model as this chat?** The round uses B. That is intentional.
 

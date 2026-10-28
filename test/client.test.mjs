@@ -26,6 +26,9 @@ test("client inject lists every ctx service read in apply, and registers unique 
   assert.match(source, /推理强度/);
   assert.match(source, /审核模型（次模型）/);
   assert.match(source, /审核规则/);
+  assert.match(source, /dirty: true/);
+  assert.match(source, /prev.dirty \|\| prev.saving/);
+  assert.match(source, /已改未保存/);
   assert.doesNotMatch(source, /ctx\.uiConversation/);
   const { exports } = loadClient();
   assert.equal(JSON.stringify(exports.inject), JSON.stringify(["slots", "sidebarRightTabs"]));
