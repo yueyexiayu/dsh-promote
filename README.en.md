@@ -4,19 +4,19 @@
   <p><strong>Write an execution contract in the current chat. A secondary model reviews it read-only. Do not treat a draft as final until it passes.</strong></p>
   <p>A DeepSeek Harness desktop plugin, plus the <code>prompt</code> / promote skill that compiles contracts.</p>
   <p><a href="README.md">简体中文</a> · <strong>English</strong></p>
-  <p><a href="LICENSE">MIT</a> · version 0.1.0</p>
+  <p><a href="LICENSE">MIT</a> · version 0.1.1</p>
   <p><a href="#features">Features</a> · <a href="#how-it-works">How it works</a> · <a href="#quick-start">Quick start</a> · <a href="#configuration">Configuration</a> · <a href="#validation">Validation</a> · <a href="#faq">FAQ</a></p>
 </div>
 
 ---
 
-The writing side is always the current conversation. When unquoted `[END OF EXECUTION PROMPT]` appears in visible assistant text, the plugin marks the draft **in review**, starts a secondary-model `fork` (then `spawn` on failure) that inspects the workspace read-only, and steers structured notes back for revision. Pass marks a final draft; exhausting the round cap marks it unqualified. `skills/prompt` **compiles** contracts only and does not execute the task.
+The writing side is always the current conversation. When unquoted `[END OF EXECUTION PROMPT]` appears in visible assistant text — including a prompt-skill fenced contract — the plugin marks the draft **in review**, starts a secondary-model `fork` (then `spawn` on failure) that inspects the workspace read-only, and steers structured notes back for revision. Pass marks a final draft; exhausting the round cap marks it unqualified. `skills/prompt` **compiles** contracts only and does not execute the task.
 
 ## Features
 
 <table>
 <tr>
-<td><strong>Auto review</strong><br/>Triggers on an unquoted, unfenced end marker. Markers only in quotes or fences are ignored.</td>
+<td><strong>Auto review</strong><br/>Triggers on an unquoted end marker, including prompt-skill fenced contracts. Markers only in blockquotes or inline code are ignored.</td>
 <td><strong>Models A / B</strong><br/>Try A first; if A matches the current session model, use B. Reasoning effort is selectable and passed in real <code>agentOptions</code>.</td>
 </tr>
 <tr>
@@ -120,7 +120,7 @@ From the plugin directory, with local Node (`/usr/local/bin/node`):
 /usr/local/bin/node --test
 ```
 
-During 0.1.0 development, `node --test` reported 39 passing tests (model collision, missing config, no double review of the same hash, stale result discard, quoted markers ignored, injected messages do not loop, reasoning effort in `agentOptions`). Unit tests do not replace desktop visibility after Cmd+Q.
+0.1.1 covers model collision, missing config, no double review of the same hash, stale result discard, quoted/inline markers ignored, fenced contracts reviewed, injected messages that do not loop, and reasoning effort in `agentOptions`. Unit tests do not replace desktop visibility after Cmd+Q.
 
 ## FAQ
 
@@ -131,6 +131,8 @@ During 0.1.0 development, `node --test` reported 39 passing tests (model collisi
 **A is the same model as this chat?** The round uses B. That is intentional.
 
 **How do the skill and plugin relate?** The skill writes contracts; the plugin reviews a contract already written in the current chat. Either can be used alone.
+
+**I wrote a contract but nothing was marked in review?** Blockquote (`>`) and inline-code markers are ignored. A prompt-skill fenced contract is reviewed. Quit fully with Cmd+Q after plugin changes.
 
 ## Community and license
 

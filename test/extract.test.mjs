@@ -5,10 +5,11 @@ import {
 } from "../lib/extract.js";
 import { MARKER } from "../lib/constants.js";
 
-test("unquoted marker triggers, quoted and fenced markers do not", () => {
+test("plain and fenced markers trigger; quoted and inline markers do not", () => {
   assert.equal(hasUnquotedMarker(`正文\n${MARKER}\n`), true);
   assert.equal(hasUnquotedMarker(`> ${MARKER}`), false);
-  assert.equal(hasUnquotedMarker("```\n" + MARKER + "\n```"), false);
+  assert.equal(hasUnquotedMarker("```\n" + MARKER + "\n```"), true);
+  assert.equal(hasUnquotedMarker("```text\n结果：示例\n" + MARKER + "\n```"), true);
   assert.equal(hasUnquotedMarker("`" + MARKER + "`"), false);
   assert.equal(hasUnquotedMarker("前言\n> " + MARKER + "\n" + MARKER), true);
 });
@@ -31,8 +32,9 @@ test("visible text ignores reasoning and hashes the contract bytes", () => {
   assert.notEqual(contractHash(text), contractHash(text + " "));
 });
 
-test("stripQuotedAndFenced removes both fence styles", () => {
+test("stripQuotedAndFenced unwraps fences and keeps inner markers", () => {
   const stripped = stripQuotedAndFenced("keep\n~~~\n" + MARKER + "\n~~~\nok");
-  assert.equal(stripped.includes(MARKER), false);
+  assert.equal(stripped.includes(MARKER), true);
   assert.equal(stripped.includes("keep"), true);
+  assert.equal(stripped.includes("~~~"), false);
 });

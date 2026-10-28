@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { apply, inject } from "../lib/index.js";
 import { MARKER } from "../lib/constants.js";
 import { contractHash } from "../lib/extract.js";
-import { createDraftState } from "../lib/projection.js";
+import { createDraftState, reduceDraftState } from "../lib/projection.js";
 
 function draftWith(text) {
   return {
@@ -128,6 +128,36 @@ test("API refuses A=B and unassociated GET does not impersonate a default main m
   assert.equal(open.session.mainModel, null);
   assert.ok(Array.isArray(open.rules.criteria) && open.rules.criteria.some((item) => item.includes("现场对得上")));
   assert.ok(Array.isArray(open.rules.constraints) && open.rules.constraints.some((item) => item.includes("只读")));
+});
+
+test("skill-style fenced contract from the real projection auto-starts review", async (t) => {
+  const h = await host(t);
+  await h.call("POST", "session-a", {
+    modelA: "openai-codex/gpt-6-astra",
+    modelB: "xai/grok-4.5",
+    maxRevisions: 3,
+    autoReview: true,
+  });
+  const agent = h.addAgent("session-a");
+  const text = [
+    "**档位：standard 执行契约。**",
+    "",
+    "```text",
+    "结果：监测工作台加查看详情",
+    "任务根：/tmp/ws",
+    MARKER,
+    "```",
+  ].join("\n");
+  const draft = [
+    { type: "turn/start", data: { turn: 1 } },
+    { type: "assistant/message", data: { turn: 1, interrupted: false, message: { content: [{ type: "text", text }] } } },
+  ].reduce(reduceDraftState, createDraftState());
+  assert.equal(draft.hasTrigger, true);
+  h.drafts.set("session-a", draft);
+  h.listeners.get("agent/turn-stopping")({ agent, turn: 1, signal: { aborted: false } });
+  await waitUntil(() => h.activations.length === 1);
+  assert.equal(h.activations.length, 1);
+  assert.match(h.delivered[0].message.content[0].text, /审核中/);
 });
 
 test("unquoted marker starts one review; quotes do not; same hash does not double-start", async (t) => {

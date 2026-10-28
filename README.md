@@ -4,19 +4,19 @@
   <p><strong>当前对话写执行契约，次模型只读挑错，通过之前不要把初稿当成终稿。</strong></p>
   <p>DeepSeek Harness 桌面插件，外加编译契约的 <code>prompt</code> / promote skill。</p>
   <p><strong>简体中文</strong> · <a href="README.en.md">English</a></p>
-  <p><a href="LICENSE">MIT</a> · 版本 0.1.0</p>
+  <p><a href="LICENSE">MIT</a> · 版本 0.1.1</p>
   <p><a href="#核心能力">核心能力</a> · <a href="#工作方式">工作方式</a> · <a href="#快速开始">快速开始</a> · <a href="#配置">配置</a> · <a href="#验证">验证</a> · <a href="#常见问题">常见问题</a></p>
 </div>
 
 ---
 
-写作端始终是当前主对话。插件在可见正文出现未引用的 `[END OF EXECUTION PROMPT]` 时标「审核中」，用与主模型不同的次模型 `fork`（失败再 `spawn`）只读查仓，结构化意见回到同一对话由主模型改稿。通过才标终稿，用尽次数标未通过。仓库里的 `skills/prompt` 只负责**编译**契约，不执行任务。
+写作端始终是当前主对话。插件在可见正文出现未引用的 `[END OF EXECUTION PROMPT]` 时标「审核中」（prompt skill 的围栏契约也审），用与主模型不同的次模型 `fork`（失败再 `spawn`）只读查仓，结构化意见回到同一对话由主模型改稿。通过才标终稿，用尽次数标未通过。仓库里的 `skills/prompt` 只负责**编译**契约，不执行任务。
 
 ## 核心能力
 
 <table>
 <tr>
-<td><strong>自动审核</strong><br/>未引用、非围栏的结束标记触发；引用块和代码围栏里的标记不审。</td>
+<td><strong>自动审核</strong><br/>未引用的结束标记触发，含 prompt skill 的围栏契约；引用行和行内代码中的标记不审。</td>
 <td><strong>次模型 A / B</strong><br/>先 A；A 撞当前会话主模型则用 B。可分别选择推理强度，并写入真实 <code>agentOptions</code>。</td>
 </tr>
 <tr>
@@ -120,7 +120,7 @@ cp -R skills/prompt "$DSH_HOME/skills/prompt"
 /usr/local/bin/node --test
 ```
 
-0.1.0 开发时 `node --test` 为 39 通过，覆盖撞模型、未配置、同哈希不双审、过期结果丢弃、引用块不自动审、注入不回环、推理强度写入 `agentOptions`。单测不能代替 ⌘Q 后的桌面可见性。
+0.1.1 覆盖撞模型、未配置、同哈希不双审、过期结果丢弃、引用行/行内代码不自动审、围栏契约会审、注入不回环、推理强度写入 `agentOptions`。单测不能代替 ⌘Q 后的桌面可见性。
 
 ## 常见问题
 
@@ -131,6 +131,8 @@ cp -R skills/prompt "$DSH_HOME/skills/prompt"
 **A 选了当前对话同一个模型？** 会改用 B，这是设计，避免自审。
 
 **skill 和插件什么关系？** skill 生成契约；插件审核当前对话里已经写出来的契约。可以只用其中一个。
+
+**写了契约但没有「审核中」？** 引用行（`>`）和行内代码里的结束标记不审。prompt skill 那种围栏契约会审。改完插件须 ⌘Q。
 
 ## 社区与许可
 
