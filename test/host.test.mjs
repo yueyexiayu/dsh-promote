@@ -157,9 +157,8 @@ test("skill-style fenced contract from the real projection auto-starts review", 
   h.listeners.get("agent/turn-stopping")({ agent, turn: 1, signal: { aborted: false } });
   await waitUntil(() => h.activations.length === 1);
   assert.equal(h.activations.length, 1);
-  assert.equal(h.delivered[0].wake, true);
+  assert.equal(h.delivered[0].wake, false);
   assert.match(h.delivered[0].message.content[0].text, /审核中/);
-  assert.match(h.delivered[0].message.content[0].text, /调用工具 promote/);
 });
 
 test("unquoted marker starts one review; quotes do not; same hash does not double-start", async (t) => {
@@ -179,9 +178,8 @@ test("unquoted marker starts one review; quotes do not; same hash does not doubl
   assert.equal(h.activations.length, 1);
   assert.equal(h.activations[0].provider, "fork");
   assert.equal(h.activations[0].delivery, "caller");
-  assert.equal(h.delivered[0].wake, true);
+  assert.equal(h.delivered[0].wake, false);
   assert.match(h.delivered[0].message.content[0].text, /审核中/);
-  assert.match(h.delivered[0].message.content[0].text, /调用工具 promote/);
 
   const quoted = h.addAgent("session-b");
   h.drafts.set("session-b", draftWith(`> ${MARKER}`));
@@ -325,18 +323,12 @@ test("promote tool waits for the child and returns the outcome", async (t) => {
   assert.equal(h.activations.length, 1);
 });
 
-test("parent is steered again if a turn ends while review is still running", async (t) => {
-  let resolveHang;
-  const hang = new Promise((resolve) => { resolveHang = resolve; });
-  t.after(() => {
-    resolveHang({
-      stopReason: "completed",
-      structured: { passed: true, issues: [], suggestions: [], pathsRead: ["a.js"] },
-    });
-  });
+test("turn-stopping waits for review before the hook returns", async (t) => {
+  let resolveChild;
+  const child = new Promise((resolve) => { resolveChild = resolve; });
   const h = await host(t, {
     async startActivation() {
-      return { childId: "hang", result: hang, dispose() {} };
+      return { childId: "child", result: child, dispose() {} };
     },
   });
   await h.call("POST", "session-a", {
@@ -346,10 +338,19 @@ test("parent is steered again if a turn ends while review is still running", asy
   });
   const agent = h.addAgent("session-a");
   h.drafts.set("session-a", draftWith(`契约\n${MARKER}`));
-  h.listeners.get("agent/turn-stopping")({ agent, turn: 1, signal: { aborted: false } });
+  let stoppingDone = false;
+  const stopping = Promise.resolve(
+    h.listeners.get("agent/turn-stopping")({ agent, turn: 1, signal: { aborted: false } }),
+  ).then(() => { stoppingDone = true; });
   await waitUntil(() => h.activations.length === 1);
-  assert.equal(h.delivered.filter((row) => row.wake).length, 1);
-  h.listeners.get("agent/turn-stopping")({ agent, turn: 2, signal: { aborted: false } });
-  await waitUntil(() => h.delivered.filter((row) => row.wake).length === 2);
-  assert.equal(h.activations.length, 1);
+  assert.equal(stoppingDone, false);
+  assert.equal(h.delivered[0].wake, false);
+  assert.match(h.delivered[0].message.content[0].text, /审核中/);
+  resolveChild({
+    stopReason: "completed",
+    structured: { passed: true, issues: [], suggestions: [], pathsRead: ["a.js"] },
+  });
+  await stopping;
+  assert.equal(stoppingDone, true);
+  assert.equal(h.delivered.some((row) => row.message.content[0].text.startsWith("[promote 终稿]")), true);
 });

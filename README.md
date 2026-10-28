@@ -4,19 +4,19 @@
   <p><strong>当前对话写执行契约，次模型只读挑错，通过之前不要把初稿当成终稿。</strong></p>
   <p>DeepSeek Harness 桌面插件，外加编译契约的 <code>prompt</code> / promote skill。</p>
   <p><strong>简体中文</strong> · <a href="README.en.md">English</a></p>
-  <p><a href="LICENSE">MIT</a> · 版本 0.1.4</p>
+  <p><a href="LICENSE">MIT</a> · 版本 0.1.5</p>
   <p><a href="#核心能力">核心能力</a> · <a href="#工作方式">工作方式</a> · <a href="#快速开始">快速开始</a> · <a href="#配置">配置</a> · <a href="#验证">验证</a> · <a href="#常见问题">常见问题</a></p>
 </div>
 
 ---
 
-写作端始终是当前主对话。插件在可见正文出现未引用的 `[END OF EXECUTION PROMPT]` 时标「审核中」并 **steer 主对话调用 `promote` 等待**（prompt skill 的围栏契约也审）。次模型 `fork`（失败再 `spawn`）只读查仓；主对话在工具返回前保持等待。超时或失败可再调 `promote` 重试；不通过则改稿。通过才标终稿。仓库里的 `skills/prompt` 只负责**编译**契约，不执行任务。
+写作端始终是当前主对话。插件在可见正文出现未引用的 `[END OF EXECUTION PROMPT]` 时标「审核中」，并在 **`turn-stopping` 钩子内等待次模型审完**（不依赖主模型去调 `promote`）。通过才标终稿；不通过或超时再唤醒主模型改稿/重试。仓库里的 `skills/prompt` 只负责**编译**契约，不执行任务。
 
 ## 核心能力
 
 <table>
 <tr>
-<td><strong>自动审核</strong><br/>未引用的结束标记触发；主对话须调用 <code>promote</code> 等待结果，审核中不会看起来像任务已结束。</td>
+<td><strong>自动审核</strong><br/>未引用的结束标记触发；写作轮在钩子内等审完才结束，不依赖主模型调用 <code>promote</code>。</td>
 <td><strong>次模型 A / B</strong><br/>先 A；A 撞当前会话主模型则用 B。可分别选择推理强度，并写入真实 <code>agentOptions</code>。</td>
 </tr>
 <tr>
@@ -34,9 +34,9 @@
 ![主对话写契约，插件标审核中，次模型只读查仓，意见回主对话改稿，通过或用尽后才结束](docs/assets/workflow.zh-CN.svg)
 
 1. 当前对话（或 prompt skill）写出契约，正文含 `[END OF EXECUTION PROMPT]`。
-2. 插件注入「审核中」，并要求主对话立即调用 `promote` 等待；未调用则最多再唤醒 2 次。
-3. `promote` 阻塞直到次模型返回（同一哈希接入进行中的审核，超时 120s，工具超时略长）。超时/失败且 retryable 时可再调用。
-4. 不通过则主模型按意见改稿；通过标终稿，用尽标未通过。
+2. 插件注入「审核中」，并在 `turn-stopping` 里等待次模型返回；写作轮此时不标完成。
+3. 通过则标终稿；不通过则唤醒主模型改稿；超时/失败可再调 `promote` 重试（120s）。
+4. 显式 `promote` 仍可等待或接入进行中的同一哈希审核。
 
 ## 快速开始
 
@@ -120,7 +120,7 @@ cp -R skills/prompt "$DSH_HOME/skills/prompt"
 /usr/local/bin/node --test
 ```
 
-0.1.4 覆盖主对话调用 `promote` 等待审核、超时可重试、未等待则再唤醒、围栏契约会审、侧栏手动刷新。单测不能代替 ⌘Q 后的桌面可见性。
+0.1.5 覆盖钩子内等待审核、失败/超时再唤醒主模型、围栏契约会审、侧栏手动刷新。单测不能代替 ⌘Q 后的桌面可见性。
 
 ## 常见问题
 
@@ -136,7 +136,7 @@ cp -R skills/prompt "$DSH_HOME/skills/prompt"
 
 **写了契约但没有「审核中」？** 引用行（`>`）和行内代码里的结束标记不审。prompt skill 那种围栏契约会审。改完插件须 ⌘Q。
 
-**主对话为什么像结束了？** 0.1.4 起审核开始会唤醒主对话调用 `promote` 等待；工具返回前应显示进行中。若模型没调工具，最多再唤醒 2 次。
+**主对话为什么像结束了？** 0.1.5 起在 `turn-stopping` 钩子内等审完（Host 若等待异步钩子，写作轮不会先标完成）。失败或超时再唤醒主模型。这仍不是官方 subagent 的 pending 工具心跳。
 
 ## 社区与许可
 
