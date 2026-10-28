@@ -1,6 +1,6 @@
 {
   "name": "promote",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "private": true,
   "description": "DSH desktop plugin: secondary-model read-only review of execution-prompt drafts written in the current conversation.",
   "type": "module",

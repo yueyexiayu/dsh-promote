@@ -4,19 +4,19 @@
   <p><strong>Write an execution contract in the current chat. A secondary model reviews it read-only. Do not treat a draft as final until it passes.</strong></p>
   <p>A DeepSeek Harness desktop plugin, plus the <code>prompt</code> / promote skill that compiles contracts.</p>
   <p><a href="README.md">简体中文</a> · <strong>English</strong></p>
-  <p><a href="LICENSE">MIT</a> · version 0.1.3</p>
+  <p><a href="LICENSE">MIT</a> · version 0.1.4</p>
   <p><a href="#features">Features</a> · <a href="#how-it-works">How it works</a> · <a href="#quick-start">Quick start</a> · <a href="#configuration">Configuration</a> · <a href="#validation">Validation</a> · <a href="#faq">FAQ</a></p>
 </div>
 
 ---
 
-The writing side is always the current conversation. When unquoted `[END OF EXECUTION PROMPT]` appears in visible assistant text — including a prompt-skill fenced contract — the plugin marks the draft **in review**, starts a secondary-model `fork` (then `spawn` on failure) that inspects the workspace read-only, and steers structured notes back for revision. Pass marks a final draft; exhausting the round cap marks it unqualified. `skills/prompt` **compiles** contracts only and does not execute the task.
+The writing side is always the current conversation. When unquoted `[END OF EXECUTION PROMPT]` appears in visible assistant text — including a prompt-skill fenced contract — the plugin marks the draft **in review** and **steers the parent to call `promote` and wait**. A secondary-model `fork` (then `spawn` on failure) inspects the workspace read-only. Timeouts are retryable via `promote`. Failures come back as revision notes. Pass marks a final draft. `skills/prompt` **compiles** contracts only and does not execute the task.
 
 ## Features
 
 <table>
 <tr>
-<td><strong>Auto review</strong><br/>Triggers on an unquoted end marker, including prompt-skill fenced contracts. Markers only in blockquotes or inline code are ignored.</td>
+<td><strong>Auto review</strong><br/>Triggers on an unquoted end marker. The parent must call <code>promote</code> and wait so the chat does not look finished mid-review.</td>
 <td><strong>Models A / B</strong><br/>Try A first; if A matches the current session model, use B. Reasoning effort is selectable and passed in real <code>agentOptions</code>.</td>
 </tr>
 <tr>
@@ -34,9 +34,9 @@ The writing side is always the current conversation. When unquoted `[END OF EXEC
 ![The main chat writes a contract, the plugin marks it in review, a secondary model inspects the repo read-only, notes return for revision, then pass or exhaust](docs/assets/workflow.en.svg)
 
 1. The current chat (or the prompt skill) writes a contract whose body includes `[END OF EXECUTION PROMPT]`.
-2. The plugin immediately injects an in-review status. That version is not final.
-3. The secondary model inspects the session workspace read-only and returns pass/issues/suggestions/paths read.
-4. Failures steer the main model to revise. Pass marks final; exhausting N rounds marks unqualified.
+2. The plugin injects in-review status and tells the parent to call `promote` and wait (up to two extra wakes if it does not).
+3. `promote` blocks until the secondary model returns (same hash joins an in-flight review; 120s cap). Timeouts are retryable.
+4. Failures come back as revision notes. Pass marks final; exhausting N rounds marks unqualified.
 
 ## Quick start
 
@@ -120,7 +120,7 @@ From the plugin directory, with local Node (`/usr/local/bin/node`):
 /usr/local/bin/node --test
 ```
 
-0.1.3 covers model collision, missing config, no double review of the same hash, stale result discard, quoted/inline markers ignored, fenced contracts reviewed, a manual sidebar refresh, injected messages that do not loop, and reasoning effort in `agentOptions`. Unit tests do not replace desktop visibility after Cmd+Q.
+0.1.4 covers the parent calling `promote` and waiting, retryable timeouts, extra wakes if the parent does not wait, fenced contracts, and a manual sidebar refresh. Unit tests do not replace desktop visibility after Cmd+Q.
 
 ## FAQ
 
@@ -135,6 +135,8 @@ From the plugin directory, with local Node (`/usr/local/bin/node`):
 **How do the skill and plugin relate?** The skill writes contracts; the plugin reviews a contract already written in the current chat. Either can be used alone.
 
 **I wrote a contract but nothing was marked in review?** Blockquote (`>`) and inline-code markers are ignored. A prompt-skill fenced contract is reviewed. Quit fully with Cmd+Q after plugin changes.
+
+**Why did the main chat look finished?** From 0.1.4 the parent is steered to call `promote` and wait. The turn should stay busy until that tool returns. If the model skips the tool, the plugin wakes it at most twice more.
 
 ## Community and license
 

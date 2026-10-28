@@ -157,7 +157,9 @@ test("skill-style fenced contract from the real projection auto-starts review", 
   h.listeners.get("agent/turn-stopping")({ agent, turn: 1, signal: { aborted: false } });
   await waitUntil(() => h.activations.length === 1);
   assert.equal(h.activations.length, 1);
+  assert.equal(h.delivered[0].wake, true);
   assert.match(h.delivered[0].message.content[0].text, /审核中/);
+  assert.match(h.delivered[0].message.content[0].text, /调用工具 promote/);
 });
 
 test("unquoted marker starts one review; quotes do not; same hash does not double-start", async (t) => {
@@ -177,7 +179,9 @@ test("unquoted marker starts one review; quotes do not; same hash does not doubl
   assert.equal(h.activations.length, 1);
   assert.equal(h.activations[0].provider, "fork");
   assert.equal(h.activations[0].delivery, "caller");
+  assert.equal(h.delivered[0].wake, true);
   assert.match(h.delivered[0].message.content[0].text, /审核中/);
+  assert.match(h.delivered[0].message.content[0].text, /调用工具 promote/);
 
   const quoted = h.addAgent("session-b");
   h.drafts.set("session-b", draftWith(`> ${MARKER}`));
@@ -302,4 +306,50 @@ test("saved reasoning effort is resolved and passed into the real child call", a
 test("explicit promote tool is registered as a fallback", async (t) => {
   const h = await host(t);
   assert.equal(h.tools.some((tool) => tool.name === "promote"), true);
+});
+
+test("promote tool waits for the child and returns the outcome", async (t) => {
+  const h = await host(t);
+  await h.call("POST", "session-a", {
+    modelA: "openai-codex/gpt-6-astra",
+    modelB: "xai/grok-4.5",
+    autoReview: true,
+  });
+  const agent = h.addAgent("session-a");
+  h.drafts.set("session-a", draftWith(`契约\n${MARKER}`));
+  const tool = h.tools.find((item) => item.name === "promote");
+  assert.ok(tool.timeoutMs > 120_000);
+  const result = await tool.execute({}, { agent });
+  assert.equal(result.ok, true);
+  assert.equal(result.status, "passed");
+  assert.equal(h.activations.length, 1);
+});
+
+test("parent is steered again if a turn ends while review is still running", async (t) => {
+  let resolveHang;
+  const hang = new Promise((resolve) => { resolveHang = resolve; });
+  t.after(() => {
+    resolveHang({
+      stopReason: "completed",
+      structured: { passed: true, issues: [], suggestions: [], pathsRead: ["a.js"] },
+    });
+  });
+  const h = await host(t, {
+    async startActivation() {
+      return { childId: "hang", result: hang, dispose() {} };
+    },
+  });
+  await h.call("POST", "session-a", {
+    modelA: "openai-codex/gpt-6-astra",
+    modelB: "xai/grok-4.5",
+    autoReview: true,
+  });
+  const agent = h.addAgent("session-a");
+  h.drafts.set("session-a", draftWith(`契约\n${MARKER}`));
+  h.listeners.get("agent/turn-stopping")({ agent, turn: 1, signal: { aborted: false } });
+  await waitUntil(() => h.activations.length === 1);
+  assert.equal(h.delivered.filter((row) => row.wake).length, 1);
+  h.listeners.get("agent/turn-stopping")({ agent, turn: 2, signal: { aborted: false } });
+  await waitUntil(() => h.delivered.filter((row) => row.wake).length === 2);
+  assert.equal(h.activations.length, 1);
 });
