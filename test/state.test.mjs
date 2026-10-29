@@ -68,6 +68,30 @@ test("explicit and auto must not both be considered startable while one hash is 
   assert.equal(shouldStartReview(state, { hash: "same", explicit: false, autoReady: true }).ok, false);
 });
 
+test("sessionRound counts every review; version round resets after exhausted", () => {
+  const state = createReviewState();
+  const first = beginReview(state, { hash: "a", reviewer, maxRevisions: 1 });
+  assert.equal(state.last.sessionRound, 1);
+  assert.equal(state.last.round, 1);
+  completeReview(state, {
+    hash: "a",
+    generation: first.active.generation,
+    result: { passed: false, issues: [{ summary: "仍有问题" }], suggestions: [], pathsRead: ["x"] },
+  });
+  assert.equal(state.phase, "exhausted");
+  const second = beginReview(state, { hash: "b", reviewer, maxRevisions: 3 });
+  assert.equal(state.last.sessionRound, 2);
+  assert.equal(state.last.round, 1);
+  const passed = completeReview(state, {
+    hash: "b",
+    generation: second.active.generation,
+    result: { passed: true, issues: [], suggestions: [], pathsRead: ["lib/index.js"] },
+  });
+  assert.equal(passed.kind, "passed");
+  assert.equal(state.last.sessionRound, 2);
+  assert.equal(state.last.round, 1);
+});
+
 test("visible failures record disableAuto without inventing a pass", () => {
   const state = createReviewState();
   const last = failVisible(state, { reason: "未配置", hash: "h", disableAuto: true, code: "UNCONFIGURED" });

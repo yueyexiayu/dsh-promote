@@ -131,11 +131,11 @@ test("API refuses A=B and unassociated GET does not impersonate a default main m
   assert.equal(open.session.mainModel, null);
   assert.ok(Array.isArray(open.rules.criteria) && open.rules.criteria.some((item) => item.includes("现场对得上")));
   assert.ok(Array.isArray(open.rules.constraints) && open.rules.constraints.some((item) => item.includes("只读")));
-  assert.equal(open.version, "0.1.7");
+  assert.equal(open.version, "0.1.8");
   assert.equal(open.session.reviewing, false);
   const sessionOnly = await h.call("GET", "session-a", undefined, "session");
   assert.equal(sessionOnly.ok, true);
-  assert.equal(sessionOnly.version, "0.1.7");
+  assert.equal(sessionOnly.version, "0.1.8");
   assert.equal(sessionOnly.settings, undefined);
   assert.equal(sessionOnly.routes, undefined);
   assert.equal(sessionOnly.session.unassociated, false);
