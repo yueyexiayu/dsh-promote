@@ -26,13 +26,26 @@ test("observed read paths can satisfy pathsRead when the model omits them", () =
     structured: { passed: true, issues: [], suggestions: [], pathsRead: [] },
     stopReason: "completed",
     observedPaths: ["lib/index.js"],
+    observedLsp: ["findReferences"],
   });
   assert.equal(result.passed, true);
   assert.deepEqual(result.pathsRead, ["lib/index.js"]);
 });
 
+test("reads without lsp call-chain queries cannot pass", () => {
+  const result = interpretResult({
+    structured: { passed: true, issues: [], suggestions: [], pathsRead: ["lib/index.js"] },
+    stopReason: "completed",
+    observedPaths: ["lib/index.js"],
+    observedLsp: ["hover"],
+  });
+  assert.equal(result.passed, false);
+  assert.match(result.issues[0].summary, /lsp 核对调用链/);
+});
+
 test("toolCallPath reads official argument field names", () => {
   assert.equal(toolCallPath({ arguments: { file_path: "lib/a.js" } }), "lib/a.js");
+  assert.equal(toolCallPath({ arguments: "{\"file_path\":\"lib/b.js\"}" }), "lib/b.js");
   assert.equal(toolCallPath({ args: { path: "/tmp/ws" } }), "/tmp/ws");
   assert.equal(toolCallPath({ name: "read" }), null);
 });
@@ -66,11 +79,19 @@ test("watchChildTools records reads and write-tool names including bash", () => 
     session,
     ctx: { on(_name, fn) { listeners.push(fn); return () => {}; } },
   };
-  watchChildTools(child, { onWrite(name) { wrote = name; }, onRead(path) { reads.push(path); } });
+  const lsp = [];
+  watchChildTools(child, {
+    onWrite(name) { wrote = name; },
+    onRead(path) { reads.push(path); },
+    onLsp(op) { lsp.push(op); },
+  });
   listeners[0](session, { type: "tool/call", data: { name: "read", arguments: { file_path: "a.js" } } });
   listeners[0](session, { type: "tool/call", data: { name: "bash", arguments: { command: "rm -rf x" } } });
+  listeners[0](session, { type: "tool/call", data: { name: "lsp", arguments: "{\"operation\":\"findReferences\",\"file_path\":\"a.js\"}" } });
+  listeners[0](session, { type: "tool/call", data: { name: "lsp", arguments: { operation: "hover" } } });
   assert.deepEqual(reads, ["a.js"]);
   assert.equal(wrote, "bash");
+  assert.deepEqual(lsp, ["findReferences"]);
 });
 
 test("spawn is preferred so the reviewer route is not overwritten by a forked parent header", async () => {
@@ -173,4 +194,6 @@ test("spawn prompt includes workspace, original user text and tool summary; fork
   assert.equal(fork.includes("禁止调用 edit"), true);
   assert.equal(fork.includes("read-only"), true);
   assert.equal(fork.includes("bash"), true);
+  assert.equal(fork.includes("findReferences"), true);
+  assert.equal(spawn.includes("findReferences"), true);
 });

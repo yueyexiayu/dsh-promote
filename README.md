@@ -4,7 +4,7 @@
   <p><strong>当前对话写执行契约，次模型只读挑错，通过之前不要把初稿当成终稿。</strong></p>
   <p>DeepSeek Harness 桌面插件，外加编译契约的 <code>prompt</code> / promote skill。</p>
   <p><strong>简体中文</strong> · <a href="README.en.md">English</a></p>
-  <p><a href="LICENSE">MIT</a> · 版本 0.1.8</p>
+  <p><a href="LICENSE">MIT</a> · 版本 0.1.9</p>
   <p><a href="#核心能力">核心能力</a> · <a href="#工作方式">工作方式</a> · <a href="#快速开始">快速开始</a> · <a href="#配置">配置</a> · <a href="#验证">验证</a> · <a href="#常见问题">常见问题</a></p>
 </div>
 
@@ -120,7 +120,7 @@ cp -R skills/prompt "$DSH_HOME/skills/prompt"
 /usr/local/bin/node --test
 ```
 
-0.1.8 按本会话实际审核次数统计，本版轮次只用于上限；优先 spawn 以免 fork 带上父模型。单测不能代替 ⌘Q 后的桌面可见性。
+0.1.9 审核必须实际调用 lsp 的定义/引用查询，不得只用 grep 冒充调用链。单测不能代替 ⌘Q 后的桌面可见性。
 
 ## 常见问题
 
