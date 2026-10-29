@@ -73,17 +73,43 @@ test("watchChildTools records reads and write-tool names including bash", () => 
   assert.equal(wrote, "bash");
 });
 
-test("fork is preferred and spawn is used only after fork fails", async () => {
+test("spawn is preferred so the reviewer route is not overwritten by a forked parent header", async () => {
   const seen = [];
   const subagents = {
     getProvider(name) { return { name }; },
     async startActivation(spec) {
       seen.push(spec.provider);
-      if (spec.provider === "fork") throw new Error("depth full");
-      assert.equal(spec.delivery, "caller");
-      assert.deepEqual(spec.request.agentOptions, { provider: reviewer.provider, model: reviewer.model });
-      assert.ok(spec.request.outputSchema);
-      assert.ok(spec.request.prompt[0].text.includes("BEGIN CONTRACT"));
+      if (spec.provider === "spawn") {
+        assert.equal(spec.delivery, "caller");
+        assert.deepEqual(spec.request.agentOptions, { provider: reviewer.provider, model: reviewer.model });
+        assert.ok(spec.request.outputSchema);
+        assert.ok(spec.request.prompt[0].text.includes("BEGIN CONTRACT"));
+        return { childId: "child", result: Promise.resolve({}), dispose() {} };
+      }
+      throw new Error("fork should not start when spawn works");
+    },
+  };
+  const started = await startReviewChild({
+    subagents,
+    parent: { id: "parent" },
+    cwd: "/tmp/ws",
+    contract: "契约正文",
+    reviewer,
+    draft: { lastUserText: "用户原话", tools: [{ name: "read" }] },
+    signal: new AbortController().signal,
+  });
+  assert.deepEqual(seen, ["spawn"]);
+  assert.equal(started.provider, "spawn");
+});
+
+test("fork is used only after spawn fails", async () => {
+  const seen = [];
+  const subagents = {
+    getProvider(name) { return { name }; },
+    async startActivation(spec) {
+      seen.push(spec.provider);
+      if (spec.provider === "spawn") throw new Error("spawn unavailable");
+      assert.equal(spec.provider, "fork");
       return { childId: "child", result: Promise.resolve({}), dispose() {} };
     },
   };
@@ -96,8 +122,8 @@ test("fork is preferred and spawn is used only after fork fails", async () => {
     draft: { lastUserText: "用户原话", tools: [{ name: "read" }] },
     signal: new AbortController().signal,
   });
-  assert.deepEqual(seen, ["fork", "spawn"]);
-  assert.equal(started.provider, "spawn");
+  assert.deepEqual(seen, ["spawn", "fork"]);
+  assert.equal(started.provider, "fork");
 });
 
 test("selected reasoning effort is passed through agentOptions", async () => {
@@ -142,6 +168,7 @@ test("spawn prompt includes workspace, original user text and tool summary; fork
   assert.equal(fork.includes("用户原话"), false);
   assert.equal(spawn.includes("FULL_CONTRACT"), true);
   assert.equal(spawn.includes("用户原话"), true);
+  assert.equal(spawn.includes("不继承父对话历史"), true);
   assert.equal(spawn.includes("/ws"), true);
   assert.equal(fork.includes("禁止调用 edit"), true);
   assert.equal(fork.includes("read-only"), true);

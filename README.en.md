@@ -4,7 +4,7 @@
   <p><strong>Write an execution contract in the current chat. A secondary model reviews it read-only. Do not treat a draft as final until it passes.</strong></p>
   <p>A DeepSeek Harness desktop plugin, plus the <code>prompt</code> / promote skill that compiles contracts.</p>
   <p><a href="README.md">简体中文</a> · <strong>English</strong></p>
-  <p><a href="LICENSE">MIT</a> · version 0.1.6</p>
+  <p><a href="LICENSE">MIT</a> · version 0.1.7</p>
   <p><a href="#features">Features</a> · <a href="#how-it-works">How it works</a> · <a href="#quick-start">Quick start</a> · <a href="#configuration">Configuration</a> · <a href="#validation">Validation</a> · <a href="#faq">FAQ</a></p>
 </div>
 
@@ -120,7 +120,7 @@ From the plugin directory, with local Node (`/usr/local/bin/node`):
 /usr/local/bin/node --test
 ```
 
-0.1.6 covers pinning a read-only sandbox, failing bash/write tools, using observed read paths, and a 4-second session-status poll that does not overwrite unsaved form fields. Unit tests do not replace desktop visibility after Cmd+Q.
+0.1.7 prefers spawn for the reviewer child so a forked parent request/header cannot keep the main model. Unit tests do not replace desktop visibility after Cmd+Q.
 
 ## FAQ
 
