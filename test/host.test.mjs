@@ -97,8 +97,11 @@ async function host(t, options = {}) {
     agents.set(id, agent);
     return agent;
   }
-  async function call(method, sessionId, body) {
-    const url = "http://local/api/promote" + (sessionId ? "?sessionId=" + encodeURIComponent(sessionId) : "");
+  async function call(method, sessionId, body, view) {
+    const params = [];
+    if (sessionId) params.push("sessionId=" + encodeURIComponent(sessionId));
+    if (view) params.push("view=" + encodeURIComponent(view));
+    const url = "http://local/api/promote" + (params.length ? "?" + params.join("&") : "");
     const request = new Request(url, {
       method,
       headers: { "content-type": "application/json" },
@@ -128,6 +131,14 @@ test("API refuses A=B and unassociated GET does not impersonate a default main m
   assert.equal(open.session.mainModel, null);
   assert.ok(Array.isArray(open.rules.criteria) && open.rules.criteria.some((item) => item.includes("现场对得上")));
   assert.ok(Array.isArray(open.rules.constraints) && open.rules.constraints.some((item) => item.includes("只读")));
+  assert.equal(open.version, "0.1.6");
+  assert.equal(open.session.reviewing, false);
+  const sessionOnly = await h.call("GET", "session-a", undefined, "session");
+  assert.equal(sessionOnly.ok, true);
+  assert.equal(sessionOnly.version, "0.1.6");
+  assert.equal(sessionOnly.settings, undefined);
+  assert.equal(sessionOnly.routes, undefined);
+  assert.equal(sessionOnly.session.unassociated, false);
 });
 
 test("skill-style fenced contract from the real projection auto-starts review", async (t) => {

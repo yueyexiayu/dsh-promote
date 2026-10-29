@@ -4,7 +4,7 @@
   <p><strong>当前对话写执行契约，次模型只读挑错，通过之前不要把初稿当成终稿。</strong></p>
   <p>DeepSeek Harness 桌面插件，外加编译契约的 <code>prompt</code> / promote skill。</p>
   <p><strong>简体中文</strong> · <a href="README.en.md">English</a></p>
-  <p><a href="LICENSE">MIT</a> · 版本 0.1.5</p>
+  <p><a href="LICENSE">MIT</a> · 版本 0.1.6</p>
   <p><a href="#核心能力">核心能力</a> · <a href="#工作方式">工作方式</a> · <a href="#快速开始">快速开始</a> · <a href="#配置">配置</a> · <a href="#验证">验证</a> · <a href="#常见问题">常见问题</a></p>
 </div>
 
@@ -20,7 +20,7 @@
 <td><strong>次模型 A / B</strong><br/>先 A；A 撞当前会话主模型则用 B。可分别选择推理强度，并写入真实 <code>agentOptions</code>。</td>
 </tr>
 <tr>
-<td><strong>只读子代理</strong><br/>禁止改文件。必须打开工作区源码；<code>pathsRead</code> 为空不能过。</td>
+<td><strong>只读子代理</strong><br/>切到 <code>read-only</code> 沙箱，并禁止 edit/write/bash。必须打开工作区源码；空 <code>pathsRead</code> 不能过。</td>
 <td><strong>七条审核规则</strong><br/>现场、调用链、事实分层、范围、验收、本机规则、可执行且够短。侧栏与审核端同源。</td>
 </tr>
 <tr>
@@ -106,7 +106,7 @@ cp -R skills/prompt "$DSH_HOME/skills/prompt"
 - API：`/api/promote`（GET/POST）
 - 设置：`$DSH_HOME/storages/promote/settings.json`
 - 右侧栏 `kind` 为独有的 `promote`
-- 审核规则与约束见侧栏，并写进审核子代理 prompt：现场对得上、调用链、事实分层、范围闭合、可验收、不与 AGENTS.md/skill 冲突、可执行且够短；只读、禁止 edit/write/multi_edit、`pathsRead` 为空不得通过
+- 审核规则与约束见侧栏，并写进审核子代理 prompt：现场对得上、调用链、事实分层、范围闭合、可验收、不与 AGENTS.md/skill 冲突、可执行且够短；read-only 沙箱、禁止 edit/write/multi_edit/bash、`pathsRead` 为空不得通过
 
 </details>
 
@@ -120,7 +120,7 @@ cp -R skills/prompt "$DSH_HOME/skills/prompt"
 /usr/local/bin/node --test
 ```
 
-0.1.5 覆盖钩子内等待审核、失败/超时再唤醒主模型、围栏契约会审、侧栏手动刷新。单测不能代替 ⌘Q 后的桌面可见性。
+0.1.6 覆盖只读沙箱钉扎、bash 等写工具失败、实际读路径、侧栏 4 秒只刷新审核状态（不覆盖未保存表单）。单测不能代替 ⌘Q 后的桌面可见性。
 
 ## 常见问题
 
@@ -128,7 +128,7 @@ cp -R skills/prompt "$DSH_HOME/skills/prompt"
 
 **侧栏提示未配置？** 下拉框有值也要点「保存设置」。
 
-**刚选的模型又变回旧的？** 侧栏不再 4 秒自动拉设置。要更新审核状态或模型列表，点「刷新」。改 A/B 后仍须点「保存设置」。
+**刚选的模型又变回旧的？** 侧栏每 4 秒只刷新审核状态，不会覆盖未保存的 A/B。改完模型仍须点「保存设置」。要更新模型列表点「刷新」。
 
 **A 选了当前对话同一个模型？** 会改用 B，这是设计，避免自审。
 

@@ -31,7 +31,9 @@ test("client inject lists every ctx service read in apply, and registers unique 
   assert.match(source, /已改未保存/);
   assert.match(source, /刷新/);
   assert.match(source, /promote-actions/);
-  assert.doesNotMatch(source, /setInterval/);
+  assert.match(source, /view=session/);
+  assert.match(source, /setInterval\(poll, 4000\)/);
+  assert.match(source, /Host v/);
   assert.doesNotMatch(source, /ctx\.uiConversation/);
   const { exports } = loadClient();
   assert.equal(JSON.stringify(exports.inject), JSON.stringify(["slots", "sidebarRightTabs"]));

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { interpretResult, startReviewChild } from "../lib/review.js";
+import { interpretResult, pinReviewChild, startReviewChild, toolCallPath, watchChildTools } from "../lib/review.js";
 import { buildReviewPrompt } from "../lib/prompt.js";
 
 const reviewer = { provider: "openai-codex", model: "gpt-6-astra" };
@@ -16,8 +16,61 @@ test("empty pathsRead cannot pass", () => {
 
 test("write-tool and timeout failures stay visible and do not fall back to a tool-less pass", () => {
   assert.match(interpretResult({ wrote: true }).reason, /改文件工具/);
+  assert.match(interpretResult({ wrote: true, aborted: true }).reason, /改文件工具/);
   assert.match(interpretResult({ timedOut: true }).reason, /超时/);
   assert.match(interpretResult({ structured: null, stopReason: "completed" }).reason, /结构化结果/);
+});
+
+test("observed read paths can satisfy pathsRead when the model omits them", () => {
+  const result = interpretResult({
+    structured: { passed: true, issues: [], suggestions: [], pathsRead: [] },
+    stopReason: "completed",
+    observedPaths: ["lib/index.js"],
+  });
+  assert.equal(result.passed, true);
+  assert.deepEqual(result.pathsRead, ["lib/index.js"]);
+});
+
+test("toolCallPath reads official argument field names", () => {
+  assert.equal(toolCallPath({ arguments: { file_path: "lib/a.js" } }), "lib/a.js");
+  assert.equal(toolCallPath({ args: { path: "/tmp/ws" } }), "/tmp/ws");
+  assert.equal(toolCallPath({ name: "read" }), null);
+});
+
+test("pinReviewChild appends read-only sandbox and restricts write tools", () => {
+  const denied = [];
+  const events = [];
+  const child = {
+    session: { append(type, data) { events.push({ type, data }); } },
+    ctx: {
+      tools: {
+        view() { return { restrictableNames: new Set(["edit", "write", "bash"]) }; },
+        restrict(filter) { denied.push(filter.deny); },
+      },
+    },
+  };
+  const pin = pinReviewChild(child);
+  assert.equal(pin.sandbox, true);
+  assert.equal(pin.restricted, true);
+  assert.equal(events[0].type, "sandbox/mode");
+  assert.equal(events[0].data.mode, "read-only");
+  assert.deepEqual(denied[0], ["edit", "write", "bash"]);
+});
+
+test("watchChildTools records reads and write-tool names including bash", () => {
+  let wrote = null;
+  const reads = [];
+  const listeners = [];
+  const session = {};
+  const child = {
+    session,
+    ctx: { on(_name, fn) { listeners.push(fn); return () => {}; } },
+  };
+  watchChildTools(child, { onWrite(name) { wrote = name; }, onRead(path) { reads.push(path); } });
+  listeners[0](session, { type: "tool/call", data: { name: "read", arguments: { file_path: "a.js" } } });
+  listeners[0](session, { type: "tool/call", data: { name: "bash", arguments: { command: "rm -rf x" } } });
+  assert.deepEqual(reads, ["a.js"]);
+  assert.equal(wrote, "bash");
 });
 
 test("fork is preferred and spawn is used only after fork fails", async () => {
@@ -91,4 +144,6 @@ test("spawn prompt includes workspace, original user text and tool summary; fork
   assert.equal(spawn.includes("用户原话"), true);
   assert.equal(spawn.includes("/ws"), true);
   assert.equal(fork.includes("禁止调用 edit"), true);
+  assert.equal(fork.includes("read-only"), true);
+  assert.equal(fork.includes("bash"), true);
 });

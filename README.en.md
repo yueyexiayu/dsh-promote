@@ -4,7 +4,7 @@
   <p><strong>Write an execution contract in the current chat. A secondary model reviews it read-only. Do not treat a draft as final until it passes.</strong></p>
   <p>A DeepSeek Harness desktop plugin, plus the <code>prompt</code> / promote skill that compiles contracts.</p>
   <p><a href="README.md">简体中文</a> · <strong>English</strong></p>
-  <p><a href="LICENSE">MIT</a> · version 0.1.5</p>
+  <p><a href="LICENSE">MIT</a> · version 0.1.6</p>
   <p><a href="#features">Features</a> · <a href="#how-it-works">How it works</a> · <a href="#quick-start">Quick start</a> · <a href="#configuration">Configuration</a> · <a href="#validation">Validation</a> · <a href="#faq">FAQ</a></p>
 </div>
 
@@ -20,7 +20,7 @@ The writing side is always the current conversation. When unquoted `[END OF EXEC
 <td><strong>Models A / B</strong><br/>Try A first; if A matches the current session model, use B. Reasoning effort is selectable and passed in real <code>agentOptions</code>.</td>
 </tr>
 <tr>
-<td><strong>Read-only child</strong><br/>File edits fail the round. The child must open workspace sources; empty <code>pathsRead</code> cannot pass.</td>
+<td><strong>Read-only child</strong><br/>Pins a <code>read-only</code> sandbox and denies edit/write/bash. The child must open workspace sources; empty <code>pathsRead</code> cannot pass.</td>
 <td><strong>Seven review rules</strong><br/>Evidence, call chain, fact layers, scope, acceptance, local rules, and brevity. Sidebar and reviewer share the same list.</td>
 </tr>
 <tr>
@@ -106,7 +106,7 @@ Missing A/B, A equals B, or both matching the current session model: no review t
 - API: `/api/promote` (GET/POST)
 - Settings: `$DSH_HOME/storages/promote/settings.json`
 - Sidebar `kind` is the unique value `promote`
-- Review rules match the sidebar and the child prompt: evidence, call chain, fact layers, closed scope, acceptance, no conflict with AGENTS.md/skills, short enough to execute; read-only, no edit/write/multi_edit, empty `pathsRead` cannot pass
+- Review rules match the sidebar and the child prompt: evidence, call chain, fact layers, closed scope, acceptance, no conflict with AGENTS.md/skills, short enough to execute; read-only sandbox, no edit/write/multi_edit/bash, empty `pathsRead` cannot pass
 
 </details>
 
@@ -120,7 +120,7 @@ From the plugin directory, with local Node (`/usr/local/bin/node`):
 /usr/local/bin/node --test
 ```
 
-0.1.5 covers waiting inside the stop hook, waking the parent on failure or timeout, fenced contracts, and a manual sidebar refresh. Unit tests do not replace desktop visibility after Cmd+Q.
+0.1.6 covers pinning a read-only sandbox, failing bash/write tools, using observed read paths, and a 4-second session-status poll that does not overwrite unsaved form fields. Unit tests do not replace desktop visibility after Cmd+Q.
 
 ## FAQ
 
@@ -128,7 +128,7 @@ From the plugin directory, with local Node (`/usr/local/bin/node`):
 
 **The sidebar says it is unconfigured?** Saving is required even if the dropdowns show values.
 
-**The model I picked snapped back?** The sidebar no longer polls every 4 seconds. Use Refresh for status and model lists. Changing A/B still requires Save.
+**The model I picked snapped back?** The sidebar polls review status every 4 seconds and does not overwrite unsaved A/B. Changing A/B still requires Save. Use Refresh to reload the model list.
 
 **A is the same model as this chat?** The round uses B. That is intentional.
 
