@@ -92,6 +92,20 @@ test("sessionRound counts every review; version round resets after exhausted", (
   assert.equal(state.last.round, 1);
 });
 
+test("failed and superseded attempts do not consume revision quota", () => {
+  const state = createReviewState();
+  const first = beginReview(state, { hash: "a", reviewer, maxRevisions: 2 });
+  completeReview(state, { hash: "a", generation: first.active.generation, result: { failed: true, reason: "timeout" } });
+  const retry = beginReview(state, { hash: "a", reviewer, maxRevisions: 2 });
+  assert.equal(retry.active.round, 1);
+  const newer = beginReview(state, { hash: "b", reviewer, maxRevisions: 2 });
+  assert.equal(newer.active.round, 1);
+  completeReview(state, { hash: "a", generation: retry.active.generation, result: { passed: false } });
+  assert.equal(completeReview(state, { hash: "b", generation: newer.active.generation, result: { passed: false } }).kind, "needs-revision");
+  const next = beginReview(state, { hash: "c", reviewer, maxRevisions: 2 });
+  assert.equal(next.active.round, 2);
+});
+
 test("visible failures record disableAuto without inventing a pass", () => {
   const state = createReviewState();
   const last = failVisible(state, { reason: "未配置", hash: "h", disableAuto: true, code: "UNCONFIGURED" });

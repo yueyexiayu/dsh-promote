@@ -4,13 +4,13 @@
   <p><strong>当前对话写执行契约，次模型只读挑错，通过之前不要把初稿当成终稿。</strong></p>
   <p>DeepSeek Harness 桌面插件，外加编译契约的 <code>prompt</code> / promote skill。</p>
   <p><strong>简体中文</strong> · <a href="README.en.md">English</a></p>
-  <p><a href="LICENSE">MIT</a> · 版本 0.1.10</p>
+  <p><a href="LICENSE">MIT</a> · 版本 0.1.11</p>
   <p><a href="#核心能力">核心能力</a> · <a href="#工作方式">工作方式</a> · <a href="#快速开始">快速开始</a> · <a href="#配置">配置</a> · <a href="#验证">验证</a> · <a href="#常见问题">常见问题</a></p>
 </div>
 
 ---
 
-写作端始终是当前主对话。插件在可见正文出现未引用的 `[END OF EXECUTION PROMPT]` 时标「审核中」，并在 **`turn-stopping` 钩子内等待次模型审完**（不依赖主模型去调 `promote`）。通过才标终稿；不通过或超时再唤醒主模型改稿/重试。仓库里的 `skills/prompt` 只负责**编译**契约，不执行任务。
+**Host 兼容要求：** 审核需要 Host 提供可验证的启动前只读保护和审核证据接口；能力缺失时返回 `READ_ONLY_UNAVAILABLE`，证据不足时不会判通过。2026-11-01 在本机定制 DSH Desktop 0.2.2-alpha.2 上完成了非代码材料及受支持的 TypeScript 调用链真实审核；这不代表所有 Host 或语言服务都已验证。仓库里的 `skills/prompt` 只负责**编译**契约，不执行任务。
 
 ## 核心能力
 
@@ -20,7 +20,7 @@
 <td><strong>次模型 A / B</strong><br/>先 A；A 撞当前会话主模型则用 B。可分别选择推理强度，并写入真实 <code>agentOptions</code>。</td>
 </tr>
 <tr>
-<td><strong>只读子代理</strong><br/>切到 <code>read-only</code> 沙箱，并禁止 edit/write/bash。必须打开工作区源码；空 <code>pathsRead</code> 不能过。</td>
+<td><strong>只读保护</strong><br/>启动前保护无法确认时拒绝审核；代码类任务的源码读取和 LSP 调用链必须有可验证的成功证据，不能依赖模型自报。</td>
 <td><strong>七条审核规则</strong><br/>现场、调用链、事实分层、范围、验收、本机规则、可执行且够短。侧栏与审核端同源。</td>
 </tr>
 <tr>
@@ -35,7 +35,7 @@
 
 1. 当前对话（或 prompt skill）写出契约，正文含 `[END OF EXECUTION PROMPT]`。
 2. 插件注入「审核中」，并在 `turn-stopping` 里等待次模型返回；写作轮此时不标完成。
-3. 通过则标终稿；不通过则唤醒主模型改稿；超时/失败可再调 `promote` 重试（120s）。
+3. Host 保护和证据可用时执行审核，通过才标终稿；能力缺失时明确失败，可重试的失败按提示处理，统一超时为 1200s。
 4. 显式 `promote` 仍可等待或接入进行中的同一哈希审核。
 
 ## 快速开始
@@ -96,9 +96,13 @@ cp -R skills/prompt "$DSH_HOME/skills/prompt"
 | 次模型 A / B | 未配置 | `provider/model`，可带 `reasoningEffort` |
 | 最大修改次数 | 3 | 范围 1–5 |
 | 自动审核 | 开 | 关闭后可用显式工具 `promote` |
-| 审核超时 | 120s | Host 常量，不上侧栏 |
+| 审核超时 | 1200s | Host 常量，不上侧栏 |
 
-未配齐 A/B、A=B、或两者都等于当前会话主模型时，本轮不审，对话和侧栏可见失败，禁止主模型自审。
+未配齐 A/B、A=B、或两者都等于当前会话主模型时，本轮不审，对话和侧栏可见失败，禁止主模型自审。主模型优先读取活跃会话 Agent 的当前选择；旧版 Agent 没有该接口时读取会话模型投影及请求头。无法确认时显示具体原因并拒绝审核，不以全局默认模型代替。
+
+非代码材料审核需要用户在原始消息中单独一行声明 `非代码范围：仅处理非代码材料`，并在契约中指明要检查的实际材料。代码类审核需要可信 LSP；当前本机验收覆盖受限制的单项目 TypeScript，可信查询不支持 `tsconfig` 的 `extends`、`references` 或 TypeScript 插件。无法绑定源码快照或缺少调用链证据时会拒绝通过。
+
+调用链节点使用一基行号和 UTF-16 列号。当前每个节点只能表示一个位置；如果多跳链的中间函数定义和下一调用点不在同一位置，可能因无法完整证明而被拒绝。
 
 <details>
 <summary><strong>进阶：API、数据位置与审核规则</strong></summary>
@@ -106,7 +110,7 @@ cp -R skills/prompt "$DSH_HOME/skills/prompt"
 - API：`/api/promote`（GET/POST）
 - 设置：`$DSH_HOME/storages/promote/settings.json`
 - 右侧栏 `kind` 为独有的 `promote`
-- 审核规则与约束见侧栏，并写进审核子代理 prompt：现场对得上、调用链、事实分层、范围闭合、可验收、不与 AGENTS.md/skill 冲突、可执行且够短；read-only 沙箱、禁止 edit/write/multi_edit/bash、`pathsRead` 为空不得通过
+- 审核规则与约束见侧栏：代码类契约需要真实源码读取和 LSP 调用链；非源码任务检查其实际材料。启动前只读或真实工具证据无法验证时不得判通过。
 
 </details>
 
@@ -120,7 +124,7 @@ cp -R skills/prompt "$DSH_HOME/skills/prompt"
 /usr/local/bin/node --test
 ```
 
-0.1.10 prompt skill 编译契约前必须用 lsp 核对调用链，禁止输出未追引用的第一版终稿。单测不能代替 ⌘Q 后的桌面可见性。
+涉及源码的 prompt skill 契约须用 lsp 核对调用链。单测不能代替 ⌘Q 后的桌面运行态验收；不同 Host、语言服务及项目配置需要分别验证。
 
 ## 常见问题
 
@@ -136,7 +140,7 @@ cp -R skills/prompt "$DSH_HOME/skills/prompt"
 
 **写了契约但没有「审核中」？** 引用行（`>`）和行内代码里的结束标记不审。prompt skill 那种围栏契约会审。改完插件须 ⌘Q。
 
-**主对话为什么像结束了？** 0.1.5 起在 `turn-stopping` 钩子内等审完（Host 若等待异步钩子，写作轮不会先标完成）。失败或超时再唤醒主模型。这仍不是官方 subagent 的 pending 工具心跳。
+**主对话为什么像结束了？** 插件在 `turn-stopping` 钩子内等待本轮结果。超时等可重试失败会提示重试；`READ_ONLY_UNAVAILABLE` 需要先恢复可验证的保护能力，不会循环唤醒或提示立即重试。这不是官方 subagent 的 pending 工具心跳。
 
 ## 社区与许可
 

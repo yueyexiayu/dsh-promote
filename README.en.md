@@ -4,13 +4,13 @@
   <p><strong>Write an execution contract in the current chat. A secondary model reviews it read-only. Do not treat a draft as final until it passes.</strong></p>
   <p>A DeepSeek Harness desktop plugin, plus the <code>prompt</code> / promote skill that compiles contracts.</p>
   <p><a href="README.md">简体中文</a> · <strong>English</strong></p>
-  <p><a href="LICENSE">MIT</a> · version 0.1.10</p>
+  <p><a href="LICENSE">MIT</a> · version 0.1.11</p>
   <p><a href="#features">Features</a> · <a href="#how-it-works">How it works</a> · <a href="#quick-start">Quick start</a> · <a href="#configuration">Configuration</a> · <a href="#validation">Validation</a> · <a href="#faq">FAQ</a></p>
 </div>
 
 ---
 
-The writing side is always the current conversation. When unquoted `[END OF EXECUTION PROMPT]` appears in visible assistant text — including a prompt-skill fenced contract — the plugin marks the draft **in review** and **waits inside `turn-stopping`** until the secondary model finishes. It does not depend on the parent calling `promote`. Pass marks a final draft; failures or timeouts wake the parent to revise or retry. `skills/prompt` **compiles** contracts only.
+**Host compatibility:** Review requires verifiable pre-activation read-only protection and Host evidence APIs. Missing capability returns `READ_ONLY_UNAVAILABLE`; insufficient evidence cannot produce a pass. On 2026-11-01, real non-code material and supported TypeScript call-chain reviews passed on a locally customized DSH Desktop 0.2.2-alpha.2. This does not establish compatibility with every Host or language server. `skills/prompt` **compiles** contracts only.
 
 ## Features
 
@@ -20,7 +20,7 @@ The writing side is always the current conversation. When unquoted `[END OF EXEC
 <td><strong>Models A / B</strong><br/>Try A first; if A matches the current session model, use B. Reasoning effort is selectable and passed in real <code>agentOptions</code>.</td>
 </tr>
 <tr>
-<td><strong>Read-only child</strong><br/>Pins a <code>read-only</code> sandbox and denies edit/write/bash. The child must open workspace sources; empty <code>pathsRead</code> cannot pass.</td>
+<td><strong>Read-only protection</strong><br/>Review is refused when pre-activation protection cannot be verified. Code contracts require independently verifiable successful source reads and LSP call-chain evidence, not model self-reporting.</td>
 <td><strong>Seven review rules</strong><br/>Evidence, call chain, fact layers, scope, acceptance, local rules, and brevity. Sidebar and reviewer share the same list.</td>
 </tr>
 <tr>
@@ -35,7 +35,7 @@ The writing side is always the current conversation. When unquoted `[END OF EXEC
 
 1. The current chat (or the prompt skill) writes a contract whose body includes `[END OF EXECUTION PROMPT]`.
 2. The plugin injects in-review status and awaits the secondary model inside `turn-stopping`.
-3. Pass marks final. Failures wake the parent to revise. Timeouts are retryable with `promote` (120s).
+3. When Host protection and evidence are available, the plugin runs the review and marks a passing draft final. Missing capability fails explicitly; retryable failures are reported, with a unified timeout of 1200s.
 4. The explicit `promote` tool can still wait or join an in-flight review of the same hash.
 
 ## Quick start
@@ -96,9 +96,13 @@ Quit DeepSeek Harness fully (Cmd+Q) and reopen. Open **Promote** in the right si
 | Models A / B | unset | `provider/model`, optional `reasoningEffort` |
 | Max revisions | 3 | Range 1–5 |
 | Auto review | on | Use the `promote` tool when off |
-| Review timeout | 120s | Host constant, not in the sidebar |
+| Review timeout | 1200s | Host constant, not in the sidebar |
 
-Missing A/B, A equals B, or both matching the current session model: no review this round, visible failure in chat and sidebar, no self-review.
+Missing A/B, A equals B, or both matching the current session model: no review this round, visible failure in chat and sidebar, no self-review. The current model comes from the active session Agent's selection; older Agents without that API use the session model projection and request header. If the route cannot be confirmed, review is refused with a specific reason; the global default is not substituted.
+
+For non-code material review, the original user message must contain the standalone line `non-code scope: non-code materials only`, and the contract must identify the material to inspect. Code reviews require a trusted LSP. Local acceptance covered a restricted single TypeScript project; trusted queries do not support `tsconfig` `extends`, `references`, or TypeScript plugins. Review fails closed when source snapshots cannot be bound or call-chain evidence is missing.
+
+Call-chain nodes use one-based line and UTF-16 character coordinates. Each node currently represents one position, so a multi-hop chain may be rejected when an intermediate function's definition and its next call site are at different positions.
 
 <details>
 <summary><strong>Advanced: API, data location, and rules</strong></summary>
@@ -106,7 +110,7 @@ Missing A/B, A equals B, or both matching the current session model: no review t
 - API: `/api/promote` (GET/POST)
 - Settings: `$DSH_HOME/storages/promote/settings.json`
 - Sidebar `kind` is the unique value `promote`
-- Review rules match the sidebar and the child prompt: evidence, call chain, fact layers, closed scope, acceptance, no conflict with AGENTS.md/skills, short enough to execute; read-only sandbox, no edit/write/multi_edit/bash, empty `pathsRead` cannot pass
+- Review rules appear in the sidebar: code contracts require successful source reads and LSP call-chain evidence; non-source tasks require their actual materials. Unverified pre-activation protection or tool evidence must not result in a pass.
 
 </details>
 
@@ -120,7 +124,7 @@ From the plugin directory, with local Node (`/usr/local/bin/node`):
 /usr/local/bin/node --test
 ```
 
-0.1.10 requires the prompt skill to verify call chains with lsp before emitting a first-draft contract. Unit tests do not replace desktop visibility after Cmd+Q.
+The prompt skill requires LSP call-chain verification for code-related contracts. Unit tests do not replace desktop runtime verification after Cmd+Q; different Hosts, language servers, and project configurations require separate validation.
 
 ## FAQ
 
@@ -136,7 +140,7 @@ From the plugin directory, with local Node (`/usr/local/bin/node`):
 
 **I wrote a contract but nothing was marked in review?** Blockquote (`>`) and inline-code markers are ignored. A prompt-skill fenced contract is reviewed. Quit fully with Cmd+Q after plugin changes.
 
-**Why did the main chat look finished?** From 0.1.5 the stop hook awaits the review (if the Host waits on async hooks, the writing turn does not complete first). Failures or timeouts then wake the parent. This is still not the official subagent pending-tool heartbeat.
+**Why did the main chat look finished?** The `turn-stopping` hook waits for the attempt. Retryable failures such as timeouts can prompt a retry; `READ_ONLY_UNAVAILABLE` requires verified protection to be restored first and does not repeatedly wake the parent or request an immediate retry. This is not the official subagent pending-tool heartbeat.
 
 ## Community and license
 
