@@ -4,7 +4,7 @@
   <p><strong>当前对话写执行契约，次模型只读挑错，通过之前不要把初稿当成终稿。</strong></p>
   <p>DeepSeek Harness 桌面插件，外加编译契约的 <code>prompt</code> / promote skill。</p>
   <p><strong>简体中文</strong> · <a href="README.en.md">English</a></p>
-  <p><a href="LICENSE">MIT</a> · 版本 0.1.11</p>
+  <p><a href="LICENSE">MIT</a> · 版本 0.1.12</p>
   <p><a href="#核心能力">核心能力</a> · <a href="#工作方式">工作方式</a> · <a href="#快速开始">快速开始</a> · <a href="#配置">配置</a> · <a href="#验证">验证</a> · <a href="#常见问题">常见问题</a></p>
 </div>
 
@@ -102,7 +102,7 @@ cp -R skills/prompt "$DSH_HOME/skills/prompt"
 
 非代码材料审核需要用户在原始消息中单独一行声明 `非代码范围：仅处理非代码材料`，并在契约中指明要检查的实际材料。代码类审核需要可信 LSP；当前本机验收覆盖受限制的单项目 TypeScript，可信查询不支持 `tsconfig` 的 `extends`、`references` 或 TypeScript 插件。无法绑定源码快照或缺少调用链证据时会拒绝通过。
 
-调用链节点使用一基行号和 UTF-16 列号。当前每个节点只能表示一个位置；如果多跳链的中间函数定义和下一调用点不在同一位置，可能因无法完整证明而被拒绝。
+调用链节点使用一基行号和 UTF-16 列号；多跳链的中间节点另记录函数体内下一调用点。兼容 Host 须在同一受信 TypeScript 查询中证明该位置是调用点且属于对应函数。当前支持的静态形式包括具名函数、方法和 `const` 绑定的箭头函数；构造器、匿名回调及无法确认归属的情况会拒绝通过。该证据不证明运行时一定执行了相应分支或动态派发目标。
 
 <details>
 <summary><strong>进阶：API、数据位置与审核规则</strong></summary>

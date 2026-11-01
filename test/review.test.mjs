@@ -26,6 +26,7 @@ test("already aborted operations distinguish timeout, writes, stale drafts and d
 const read = (path, line = 1) => ({ name: "read", value: { path, lines: [{ number: line, text: "source" }] } });
 const lsp = (source, target, line = 1, operation = "goToDefinition", targetLine = 1, character = 1, targetCharacter = 1) => ({ name: "lsp", arguments: { operation, file_path: source, line, character },
   value: { kind: "locations", reviewSourceUri: pathToFileURL(source).href,
+    ...(["goToDefinition", "goToImplementation"].includes(operation) ? { reviewProof: { sourceIsCall: true } } : {}),
     locations: [{ uri: pathToFileURL(target).href, range: { start: { line: targetLine - 1, character: targetCharacter - 1 },
       end: { line: targetLine - 1, character: targetCharacter } } }] } });
 const edge = (from, to) => [lsp(from, to), lsp(to, from, 1, "findReferences")];
@@ -35,6 +36,11 @@ test("code evidence needs declared actual source reads and a linked nonempty LSP
   const calls = [read("/tmp/ws/start.js"), read("/tmp/ws/end.js"), ...edge("/tmp/ws/start.js", "/tmp/ws/end.js")];
   const chain = [{ path: "/tmp/ws/start.js", line: 1, character: 1 }, { path: "/tmp/ws/end.js", line: 1, character: 1 }];
   assert.deepEqual(assessReviewEvidence({ status: "verified", calls }, contract, "/tmp/ws", chain).pathsRead, ["/tmp/ws/start.js", "/tmp/ws/end.js"]);
+  for (const sourceIsCall of [undefined, false]) {
+    const notCall = structuredClone(calls);
+    notCall[2].value.reviewProof.sourceIsCall = sourceIsCall;
+    assert.equal(assessReviewEvidence({ status: "verified", calls: notCall }, contract, "/tmp/ws", chain).code, "EVIDENCE_INSUFFICIENT");
+  }
   // A definition alone, references alone, or a reference to another location is not a verified edge.
   for (const incomplete of [calls.slice(0, 3), [calls[0], calls[1], calls[3]],
     [...calls.slice(0, 3), lsp("/tmp/ws/end.js", "/tmp/ws/other.js", 1, "findReferences")]]) {
@@ -59,10 +65,11 @@ test("code evidence needs declared actual source reads and a linked nonempty LSP
   const multiCalls = [...calls, read("/tmp/ws/final.js"), ...edge("/tmp/ws/end.js", "/tmp/ws/final.js")];
   const multiChain = [...chain, { path: "/tmp/ws/final.js", line: 1, character: 1 }];
   assert.equal(assessReviewEvidence({ status: "verified", calls: multiCalls.slice(0, -2) }, multi, "/tmp/ws", multiChain).code, "EVIDENCE_INSUFFICIENT");
-  assert.equal(assessReviewEvidence({ status: "verified", calls: multiCalls }, multi, "/tmp/ws", multiChain).pathsRead.length, 3);
+  // A middle declaration alone does not identify the call it makes to the next function.
+  assert.equal(assessReviewEvidence({ status: "verified", calls: multiCalls }, multi, "/tmp/ws", multiChain).code, "EVIDENCE_INSUFFICIENT");
   const mixedEdges = [read("/tmp/ws/start.js"), read("/tmp/ws/end.js"), read("/tmp/ws/final.js"),
     lsp("/tmp/ws/start.js", "/tmp/ws/end.js"), lsp("/tmp/ws/final.js", "/tmp/ws/end.js", 1, "findReferences")];
-  assert.equal(assessReviewEvidence({ status: "verified", calls: mixedEdges }, multi, "/tmp/ws", multiChain).pathsRead.length, 3);
+  assert.equal(assessReviewEvidence({ status: "verified", calls: mixedEdges }, multi, "/tmp/ws", multiChain).code, "EVIDENCE_INSUFFICIENT");
   const direct = [...calls, read("/tmp/ws/final.js"), ...edge("/tmp/ws/start.js", "/tmp/ws/final.js")];
   assert.equal(assessReviewEvidence({ status: "verified", calls: direct }, multi, "/tmp/ws", [chain[0], multiChain[2]]).code, "EVIDENCE_INSUFFICIENT");
   assert.equal(assessReviewEvidence({ status: "verified", calls: [read("/tmp/ws/other.js")] }, contract, "/tmp/ws", chain).code, "EVIDENCE_INSUFFICIENT");
@@ -142,6 +149,67 @@ test("a multi-line LSP target requires the actual node line to be read", () => {
   // Reading only the range's start line does not establish a read of the target node.
   calls[1] = read(to, 1);
   assert.equal(assessReviewEvidence({ status: "verified", calls }, contract, "/tmp/ws", chain).code, "EVIDENCE_INSUFFICIENT");
+});
+
+test("multi-hop call sites require a Host-verified enclosing declaration", () => {
+  const a = "/tmp/ws/a.ts", b = "/tmp/ws/b.ts", c = "/tmp/ws/c.ts";
+  const contract = `调用链 ${a} -> ${b} -> ${c}`;
+  const chain = [{ path: a, line: 3, character: 3 },
+    { path: b, line: 1, character: 17, callSite: { line: 2, character: 3 } },
+    { path: c, line: 1, character: 17 }];
+  const reads = [read(a, 3), read(b, 1), read(b, 2), read(c, 1)];
+  const first = lsp(a, b, 3, "goToDefinition", 1, 3, 17);
+  const firstRef = lsp(b, a, 1, "findReferences", 3, 17, 3);
+  const second = lsp(b, c, 2, "goToDefinition", 1, 3, 17);
+  second.value.reviewProof = { sourceIsCall: true, sourceOwner: { path: b, range: {
+    start: { line: 0, character: 16 }, end: { line: 0, character: 20 },
+  } } };
+  const secondRef = lsp(c, b, 1, "findReferences", 2, 17, 3);
+  const report = { status: "verified", calls: [...reads, first, firstRef, second, secondRef] };
+  assert.deepEqual(assessReviewEvidence(report, contract, "/tmp/ws", chain).pathsRead, [a, b, c]);
+
+  // Both a.ts and c.ts referencing b.ts does not mean b.ts calls c.ts.
+  const commonReference = structuredClone(firstRef);
+  commonReference.value.locations.push(lsp(b, c, 1, "findReferences", 1, 17, 17).value.locations[0]);
+  const falseChain = [chain[0], { path: b, line: 1, character: 17 }, chain[2]];
+  assert.equal(assessReviewEvidence({ status: "verified", calls: [...reads, first, commonReference] }, contract, "/tmp/ws", falseChain).code, "EVIDENCE_INSUFFICIENT");
+  // Even a reference query with ownership evidence cannot establish a directed call edge.
+  const forwardReferenceOnly = structuredClone(report);
+  forwardReferenceOnly.calls[6].arguments.operation = "findReferences";
+  assert.equal(assessReviewEvidence(forwardReferenceOnly, contract, "/tmp/ws", chain).code, "EVIDENCE_INSUFFICIENT");
+
+  const withoutOwner = structuredClone(report);
+  delete withoutOwner.calls[6].value.reviewProof;
+  assert.equal(assessReviewEvidence(withoutOwner, contract, "/tmp/ws", chain).code, "EVIDENCE_INSUFFICIENT");
+  // Ownership on a separate query cannot be combined with an unowned edge result.
+  const separateOwner = structuredClone(withoutOwner);
+  const unrelated = structuredClone(second);
+  unrelated.value.locations[0].range = { start: { line: 0, character: 29 }, end: { line: 0, character: 30 } };
+  separateOwner.calls.push(unrelated);
+  assert.equal(assessReviewEvidence(separateOwner, contract, "/tmp/ws", chain).code, "EVIDENCE_INSUFFICIENT");
+  const wrongOwner = structuredClone(report);
+  wrongOwner.calls[6].value.reviewProof.sourceOwner.range.start.line = 3;
+  wrongOwner.calls[6].value.reviewProof.sourceOwner.range.end.line = 3;
+  assert.equal(assessReviewEvidence(wrongOwner, contract, "/tmp/ws", chain).code, "EVIDENCE_INSUFFICIENT");
+  const wrongFile = structuredClone(report);
+  wrongFile.calls[6].value.reviewProof.sourceOwner.path = a;
+  assert.equal(assessReviewEvidence(wrongFile, contract, "/tmp/ws", chain).code, "EVIDENCE_INSUFFICIENT");
+  assert.equal(assessReviewEvidence({ ...report, calls: report.calls.filter((_, i) => i !== 2) }, contract, "/tmp/ws", chain).code, "EVIDENCE_INSUFFICIENT");
+  const changedCallSite = structuredClone(chain);
+  changedCallSite[1].callSite.character = 4;
+  assert.equal(assessReviewEvidence(report, contract, "/tmp/ws", changedCallSite).code, "EVIDENCE_INSUFFICIENT");
+  const invalidCallSite = structuredClone(chain);
+  invalidCallSite[1].callSite = { line: 0, character: 3 };
+  assert.equal(assessReviewEvidence(report, contract, "/tmp/ws", invalidCallSite).code, "EVIDENCE_INSUFFICIENT");
+  const lastCallSite = structuredClone(chain);
+  lastCallSite[2].callSite = { line: 2, character: 3 };
+  assert.equal(assessReviewEvidence(report, contract, "/tmp/ws", lastCallSite).code, "EVIDENCE_INSUFFICIENT");
+  const nestedOwner = structuredClone(report);
+  nestedOwner.calls[6].value.reviewProof.sourceOwner.range = {
+    start: { line: 1, character: 0 }, end: { line: 1, character: 4 },
+  };
+  assert.equal(assessReviewEvidence(nestedOwner, contract, "/tmp/ws", chain).code, "EVIDENCE_INSUFFICIENT");
+  assert.equal(assessReviewEvidence({ ...report, status: "partial" }, contract, "/tmp/ws", chain).code, "EVIDENCE_INSUFFICIENT");
 });
 
 test("a programming-language implementation in a document cannot bypass source and LSP evidence", () => {
