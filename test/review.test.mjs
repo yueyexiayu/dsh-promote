@@ -212,6 +212,65 @@ test("multi-hop call sites require a Host-verified enclosing declaration", () =>
   assert.equal(assessReviewEvidence({ ...report, status: "partial" }, contract, "/tmp/ws", chain).code, "EVIDENCE_INSUFFICIENT");
 });
 
+test("inline callback edges require same-query receiver and invocation proof", () => {
+  const a = "/tmp/ws/app.ts", r = "/tmp/ws/receiver.ts", c = "/tmp/ws/finish.ts";
+  const contract = `调用链 ${a} -> ${a} -> ${c}`;
+  const chain = [{ path: a, line: 1, character: 1 },
+    { path: a, line: 2, character: 3, callSite: { line: 3, character: 3 } },
+    { path: c, line: 1, character: 1 }];
+  const reads = [read(a, 1), read(a, 2), read(a, 3), read(r, 1), read(r, 2), read(c, 1)];
+  const register = lsp(a, r);
+  register.value.reviewProof.callbacks = [{ range: { start: { line: 1, character: 2 }, end: { line: 1, character: 4 } },
+    receiver: { path: r, range: { start: { line: 0, character: 0 }, end: { line: 0, character: 1 } } },
+    invocation: { path: r, range: { start: { line: 1, character: 2 }, end: { line: 1, character: 4 } } } }];
+  const reference = lsp(r, a, 1, "findReferences");
+  const finish = lsp(a, c, 3, "goToDefinition", 1, 3);
+  finish.value.reviewProof.sourceOwner = { path: a, range: { start: { line: 1, character: 2 }, end: { line: 1, character: 4 } } };
+  const calls = [...reads, register, reference, finish];
+  const assess = (records, claimed = chain) => assessReviewEvidence({ status: "verified", calls: records }, contract, "/tmp/ws", claimed);
+  assert.deepEqual(assess(calls).pathsRead, [a, r, c]);
+  for (const mutate of [
+    x => { delete x[6].value.reviewProof.callbacks; },
+    x => { x[6].value.reviewProof.callbacks[0].receiver.path = c; },
+    x => { x[6].value.reviewProof.callbacks[0].invocation.path = c; },
+    x => { x[6].value.reviewProof.callbacks[0].range.start.line = 4; },
+    x => { x[6].value.reviewProof.callbacks[0].range.start.character = 5; x[6].value.reviewProof.callbacks[0].range.end.character = 7; }, // adjacent callback
+    x => { x[6].value.locations[0].range.start.character = 2; },
+    x => { x[6].value.reviewProof.sourceIsCall = false; },
+    x => { x.splice(4, 1); }, // receiver invocation line not actually read
+    x => { delete x[8].value.reviewProof.sourceOwner; },
+    x => { x.splice(7, 1); }, // no definition/reference corroboration
+  ]) {
+    const bad = structuredClone(calls);
+    mutate(bad);
+    assert.equal(assess(bad).code, "EVIDENCE_INSUFFICIENT");
+  }
+  const otherCall = structuredClone(calls);
+  const proof = otherCall[6].value.reviewProof.callbacks;
+  delete otherCall[6].value.reviewProof.callbacks;
+  otherCall.push({ ...structuredClone(otherCall[6]), arguments: { ...otherCall[6].arguments, line: 9 },
+    value: { ...otherCall[6].value, reviewProof: { sourceIsCall: true, callbacks: proof } } });
+  assert.equal(assess(otherCall).code, "EVIDENCE_INSUFFICIENT");
+});
+
+test("constructor chains bind the new target and class-owned body call", () => {
+  const a = "/tmp/ws/start.ts", b = "/tmp/ws/service.ts", c = "/tmp/ws/done.ts";
+  const chain = [{ path: a, line: 1, character: 5 },
+    { path: b, line: 1, character: 14, callSite: { line: 3, character: 5 } },
+    { path: c, line: 1, character: 1 }];
+  const create = lsp(a, b, 1, "goToDefinition", 1, 5, 14);
+  const refs = lsp(b, a, 1, "findReferences", 1, 14, 5);
+  const invoke = lsp(b, c, 3, "goToDefinition", 1, 5, 1);
+  invoke.value.reviewProof.sourceOwner = { path: b, range: { start: { line: 0, character: 13 }, end: { line: 0, character: 20 } } };
+  const records = [read(a), read(b), read(b, 3), read(c), create, refs, invoke];
+  const assess = calls => assessReviewEvidence({ status: "verified", calls }, `调用链 ${a} -> ${b} -> ${c}`, "/tmp/ws", chain);
+  assert.deepEqual(assess(records).pathsRead, [a, b, c]);
+  const wrongConstructor = structuredClone(records);
+  wrongConstructor[6].value.reviewProof.sourceOwner.range.start.character = 21;
+  wrongConstructor[6].value.reviewProof.sourceOwner.range.end.character = 28;
+  assert.equal(assess(wrongConstructor).code, "EVIDENCE_INSUFFICIENT");
+});
+
 test("a programming-language implementation in a document cannot bypass source and LSP evidence", () => {
   const report = { status: "verified", calls: [read("/tmp/ws/brief.txt")] };
   for (const task of ["审阅文档 /tmp/ws/brief.txt 中的 Python 实现", "审核材料 /tmp/ws/brief.txt 中 Java 方案",

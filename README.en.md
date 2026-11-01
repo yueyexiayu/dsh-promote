@@ -4,7 +4,7 @@
   <p><strong>Write an execution contract in the current chat. A secondary model reviews it read-only. Do not treat a draft as final until it passes.</strong></p>
   <p>A DeepSeek Harness desktop plugin, plus the <code>prompt</code> / promote skill that compiles contracts.</p>
   <p><a href="README.md">简体中文</a> · <strong>English</strong></p>
-  <p><a href="LICENSE">MIT</a> · version 0.1.12</p>
+  <p><a href="LICENSE">MIT</a> · version 0.1.13</p>
   <p><a href="#features">Features</a> · <a href="#how-it-works">How it works</a> · <a href="#quick-start">Quick start</a> · <a href="#configuration">Configuration</a> · <a href="#validation">Validation</a> · <a href="#faq">FAQ</a></p>
 </div>
 
@@ -102,7 +102,7 @@ Missing A/B, A equals B, or both matching the current session model: no review t
 
 For non-code material review, the original user message must contain the standalone line `non-code scope: non-code materials only`, and the contract must identify the material to inspect. Code reviews require a trusted LSP. Local acceptance covered a restricted single TypeScript project; trusted queries do not support `tsconfig` `extends`, `references`, or TypeScript plugins. Review fails closed when source snapshots cannot be bound or call-chain evidence is missing.
 
-Call-chain nodes use one-based line and UTF-16 character coordinates. Each intermediate node in a multi-hop chain also identifies the next call site inside its function. A compatible Host must prove in the same trusted TypeScript query that the position is a call and belongs to that function. Supported static forms include named functions, methods, and `const`-bound arrow functions; constructors, anonymous callbacks, and unverified ownership fail closed. This evidence does not prove that a runtime branch or dynamic dispatch target actually executes.
+Call-chain nodes use one-based line and UTF-16 character coordinates. Each intermediate node in a multi-hop chain also identifies the next call site inside its function. A compatible Host must prove in the same trusted TypeScript query that the position is a call and belongs to that function. In addition to named functions, methods, and `const`-bound functions, this supports explicit non-overloaded constructors in `const`-bound class expressions without inheritance. An inline anonymous callback forms a static edge only when its receiver is a `const`-bound arrow function in the same file that directly invokes the corresponding parameter at the top level of its body. Unverified ownership or invocation still fails closed; static evidence does not prove that a runtime branch or dynamic dispatch target actually executes.
 
 <details>
 <summary><strong>Advanced: API, data location, and rules</strong></summary>
