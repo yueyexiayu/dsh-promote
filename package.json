@@ -1,6 +1,6 @@
 {
   "name": "promote",
-  "version": "0.1.13",
+  "version": "0.1.14",
   "private": true,
   "description": "DSH desktop plugin: secondary-model read-only review of execution-prompt drafts written in the current conversation.",
   "type": "module",
@@ -8,7 +8,8 @@
   "exports": {
     ".": "./lib/index.js",
     "./client": "./lib/client.js",
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
   },
   "scripts": {
     "test": "node --test test/*.test.mjs"
