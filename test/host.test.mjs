@@ -67,8 +67,14 @@ async function host(t, options = {}) {
       },
     },
     sessionProjections: {
-      register() {},
-      stateOf(session) { return drafts.get(session.id) ?? createDraftState(); },
+      register() {
+        const dispose = () => {};
+        dispose.then = (onFulfilled) => {
+          onFulfilled({ stateOf: (session) => drafts.get(session.id) ?? createDraftState() });
+          return Promise.resolve();
+        };
+        return dispose;
+      },
       snapshot(session) {
         return { values: { modelSelection: { next: options.main ?? { provider: "xai", model: "grok-4.6" } } } };
       },
@@ -139,11 +145,11 @@ test("API refuses A=B and unassociated GET does not impersonate a default main m
   assert.ok(Array.isArray(open.rules.constraints) && open.rules.constraints.some((item) => item.includes("只读")));
   assert.ok(open.rules.criteria.some((item) => item.includes("lsp")));
   assert.ok(open.rules.constraints.some((item) => item.includes("lsp")));
-  assert.equal(open.version, "0.1.15");
+  assert.equal(open.version, "0.1.16");
   assert.equal(open.session.reviewing, false);
   const sessionOnly = await h.call("GET", "session-a", undefined, "session");
   assert.equal(sessionOnly.ok, true);
-  assert.equal(sessionOnly.version, "0.1.15");
+  assert.equal(sessionOnly.version, "0.1.16");
   assert.equal(sessionOnly.settings, undefined);
   assert.equal(sessionOnly.routes, undefined);
   assert.equal(sessionOnly.session.unassociated, false);
@@ -591,7 +597,7 @@ test("needs-revision is persisted for both explicit waiters and automatic runs",
     const draft = { turn:1, visibleText:text, hasTrigger:true, hash:contractHash(text), interrupted:false, tools:[], lastUserText:'' };
     const ctx = { loader:{ import:async()=>({createUserMessage:v=>v}) }, effect:f=>f(), on:(n,f)=>handlers.set(n,f),
       tools:{register:v=>tools.push(v)}, connection:{fetch:{register(){}}}, agents:{get:id=>agents.get(id)}, subagents:{},
-      sessionProjections:{register(){}, stateOf:()=>draft, snapshot:()=>({values:{modelSelection:{next:{provider:'xai',model:'grok-4.6'}}}})},
+      sessionProjections:{register(){const d=Object.assign(()=>{},{then:f=>{f({stateOf:()=>draft});return Promise.resolve()}});return d}, snapshot:()=>({values:{modelSelection:{next:{provider:'xai',model:'grok-4.6'}}}})},
       get:n=>n==='llm'?{resolveCallConfig:async()=>{}}:undefined };
     await apply(ctx,{settingsPath:process.argv[1]});
     const makeAgent=id=>{ const session={id,header:{origin:'user',delegationDepth:0,cwd:'/tmp'},append:(_t,m)=>events.push(m)};
@@ -707,7 +713,7 @@ test("a started unresolved attempt is not retired when its outer race aborts", a
     let draft; const events=[],handlers=new Map(),tools=[]; const text=x=>x+'\\n[END OF EXECUTION PROMPT]';
     const make=x=>({turn:1,visibleText:text(x),hasTrigger:true,hash:contractHash(text(x)),interrupted:false,tools:[],lastUserText:''});
     const session={id:'s',header:{origin:'user',delegationDepth:0,cwd:'/tmp'},append:(_t,m)=>events.push(m)}; const agent={session,steer:m=>events.push(m)};
-    const ctx={loader:{import:async()=>({createUserMessage:v=>v})},effect:f=>f(),on:(n,f)=>handlers.set(n,f),tools:{register:v=>tools.push(v)},connection:{fetch:{register(){}}},agents:{get:()=>agent},subagents:{},sessionProjections:{register(){},stateOf:()=>draft,snapshot:()=>({values:{modelSelection:{next:{provider:'xai',model:'grok-4.6'}}}})},get:n=>n==='llm'?{resolveCallConfig:async()=>{}}:undefined};
+    const ctx={loader:{import:async()=>({createUserMessage:v=>v})},effect:f=>f(),on:(n,f)=>handlers.set(n,f),tools:{register:v=>tools.push(v)},connection:{fetch:{register(){}}},agents:{get:()=>agent},subagents:{},sessionProjections:{register(){const d=Object.assign(()=>{},{then:f=>{f({stateOf:()=>draft});return Promise.resolve()}});return d},snapshot:()=>({values:{modelSelection:{next:{provider:'xai',model:'grok-4.6'}}}})},get:n=>n==='llm'?{resolveCallConfig:async()=>{}}:undefined};
     await apply(ctx,{settingsPath:process.argv[1]}); draft=make('A'); const a=tools[0].execute({}, {agent});
     while(attempts===0) await Promise.resolve(); draft=make('B'); const b=await tools[0].execute({}, {agent});
     assert.equal(b.code,'READ_ONLY_UNAVAILABLE'); assert.equal((await a).code,'STALE');
@@ -735,7 +741,7 @@ test("timeout during a started attempt remains unknown until cleanup is confirme
     const text='contract\\n[END OF EXECUTION PROMPT]'; const draft={turn:1,visibleText:text,hasTrigger:true,hash:contractHash(text),interrupted:false,tools:[],lastUserText:''};
     const events=[],handlers=new Map(),tools=[];
     const session={id:'s',header:{origin:'user',delegationDepth:0,cwd:'/tmp'},append:(_t,m)=>events.push(m)}; const agent={session,steer:m=>events.push(m)};
-    const ctx={loader:{import:async()=>({createUserMessage:v=>v})},effect:f=>f(),on:(n,f)=>handlers.set(n,f),tools:{register:v=>tools.push(v)},connection:{fetch:{register(){}}},agents:{get:()=>agent},subagents:{},sessionProjections:{register(){},stateOf:()=>draft,snapshot:()=>({values:{modelSelection:{next:{provider:'xai',model:'grok-4.6'}}}})},get:n=>n==='llm'?{resolveCallConfig:async()=>{}}:undefined};
+    const ctx={loader:{import:async()=>({createUserMessage:v=>v})},effect:f=>f(),on:(n,f)=>handlers.set(n,f),tools:{register:v=>tools.push(v)},connection:{fetch:{register(){}}},agents:{get:()=>agent},subagents:{},sessionProjections:{register(){const d=Object.assign(()=>{},{then:f=>{f({stateOf:()=>draft});return Promise.resolve()}});return d},snapshot:()=>({values:{modelSelection:{next:{provider:'xai',model:'grok-4.6'}}}})},get:n=>n==='llm'?{resolveCallConfig:async()=>{}}:undefined};
     await apply(ctx,{settingsPath:process.argv[1]});
     const result=await tools[0].execute({}, {agent});
     assert.equal(started,1); assert.equal(result.code,'ORPHANED'); assert.equal(result.status,'unknown');
@@ -757,7 +763,7 @@ test("unloading a started attempt reports unknown cleanup rather than an aborted
     const text='contract\\n[END OF EXECUTION PROMPT]'; const draft={turn:1,visibleText:text,hasTrigger:true,hash:contractHash(text),interrupted:false,tools:[],lastUserText:''};
     const effects=[],handlers=new Map(),tools=[];
     const session={id:'s',header:{origin:'user',delegationDepth:0,cwd:'/tmp'},append:()=>{}}; const agent={session,steer:()=>{}};
-    const ctx={loader:{import:async()=>({createUserMessage:v=>v})},effect:f=>effects.push(f()),on:(n,f)=>handlers.set(n,f),tools:{register:v=>tools.push(v)},connection:{fetch:{register(){}}},agents:{get:()=>agent},subagents:{},sessionProjections:{register(){},stateOf:()=>draft,snapshot:()=>({values:{modelSelection:{next:{provider:'xai',model:'grok-4.6'}}}})},get:n=>n==='llm'?{resolveCallConfig:async()=>{}}:undefined};
+    const ctx={loader:{import:async()=>({createUserMessage:v=>v})},effect:f=>effects.push(f()),on:(n,f)=>handlers.set(n,f),tools:{register:v=>tools.push(v)},connection:{fetch:{register(){}}},agents:{get:()=>agent},subagents:{},sessionProjections:{register(){const d=Object.assign(()=>{},{then:f=>{f({stateOf:()=>draft});return Promise.resolve()}});return d},snapshot:()=>({values:{modelSelection:{next:{provider:'xai',model:'grok-4.6'}}}})},get:n=>n==='llm'?{resolveCallConfig:async()=>{}}:undefined};
     await apply(ctx,{settingsPath:process.argv[1]}); const pending=tools[0].execute({}, {agent});
     while(!started) await Promise.resolve(); effects.forEach(fn=>fn?.());
     const result=await pending; assert.equal(result.status,'unknown'); assert.equal(result.code,'ORPHANED');
@@ -779,7 +785,7 @@ test("cleanup failure leaves a persistent orphan and blocks a repeat", async (t)
     const {reduceDraftState,createDraftState}=await import('./lib/projection.js');
     const text='contract\\n[END OF EXECUTION PROMPT]'; const draft={turn:1,visibleText:text,hasTrigger:true,hash:contractHash(text),interrupted:false,tools:[],lastUserText:''};
     const events=[],tools=[]; const session={id:'s',header:{origin:'user',delegationDepth:0,cwd:'/tmp'},append:(_t,m)=>events.push(m)}; const agent={session,steer:m=>events.push(m)};
-    const ctx={loader:{import:async()=>({createUserMessage:v=>v})},effect:f=>f(),on:()=>{},tools:{register:v=>tools.push(v)},connection:{fetch:{register(){}}},agents:{get:()=>agent},subagents:{},sessionProjections:{register(){},stateOf:()=>draft,snapshot:()=>({values:{modelSelection:{next:{provider:'xai',model:'grok-4.6'}}}})},get:n=>n==='llm'?{resolveCallConfig:async()=>{}}:undefined};
+    const ctx={loader:{import:async()=>({createUserMessage:v=>v})},effect:f=>f(),on:()=>{},tools:{register:v=>tools.push(v)},connection:{fetch:{register(){}}},agents:{get:()=>agent},subagents:{},sessionProjections:{register(){const d=Object.assign(()=>{},{then:f=>{f({stateOf:()=>draft});return Promise.resolve()}});return d},snapshot:()=>({values:{modelSelection:{next:{provider:'xai',model:'grok-4.6'}}}})},get:n=>n==='llm'?{resolveCallConfig:async()=>{}}:undefined};
     await apply(ctx,{settingsPath:process.argv[1]}); const result=await tools[0].execute({}, {agent});
     assert.equal(result.code,'ORPHANED'); assert.equal(result.causeCode,'CLEANUP_FAILED');
     assert.equal((await tools[0].execute({}, {agent})).code,'ORPHANED');
