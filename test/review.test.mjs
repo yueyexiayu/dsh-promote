@@ -119,6 +119,13 @@ test("the original user request can supply the material-task intent omitted from
     "非代码范围：仅处理非代码材料\n请读取文档并报告标题").pathsRead, [path]);
 });
 
+test("a negated call-chain disclaimer does not turn a material task into source code", () => {
+  const path = "/tmp/ws/brief.md";
+  const report = { status: "verified", calls: [read(path)] };
+  const contract = `读取文档 ${path} 的版本号。本任务不涉及源码调用、构建产物或插件加载链，因此不适用 lsp 调用链核对。`;
+  assert.deepEqual(assessReviewEvidence(report, contract, "/tmp/ws", [], "非代码范围：仅处理非代码材料").pathsRead, [path]);
+});
+
 test("configuration tasks require their named file but no synthetic call chain", () => {
   const path = "/tmp/ws/package.json";
   const report = { status: "verified", calls: [{ name: "read", value: { path, lines: [{ number: 1, text: "{}" }] } }] };
