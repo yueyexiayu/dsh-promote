@@ -37,6 +37,17 @@ test("missing current session model does not invent a Host default reviewer", ()
   assert.equal(choice.code, "NO_MAIN");
 });
 
+test("recorded Session routes restrict reviewer selection", () => {
+  const policy = [main, third];
+  const choice = chooseReviewer(main, { modelA: main, modelB: third }, null, policy);
+  assert.equal(choice.ok, true);
+  assert.deepEqual(choice.reviewer, third);
+  assert.equal(choice.fallbackReason, "main-model");
+  assert.equal(chooseReviewer(main, { modelA: other, modelB: { provider: "private", model: "review" } }, null, policy).code,
+    "MODEL_NOT_ALLOWED");
+  assert.deepEqual(chooseReviewer(main, { modelA: other, modelB: third }, null, [other, third]).reviewer, other);
+});
+
 test("auto review is disabled when the switch is off or the choice failed", () => {
   assert.equal(autoReviewReady({ autoReview: false }, { ok: true }).ok, false);
   assert.equal(autoReviewReady({ autoReview: true }, { ok: false, reason: "x" }).ok, false);

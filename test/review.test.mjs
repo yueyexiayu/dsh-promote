@@ -80,6 +80,18 @@ test("code evidence needs declared actual source reads and a linked nonempty LSP
   assert.equal(assessReviewEvidence({ status: "verified", calls: [...namedCalls, material] }, "按 /tmp/ws/spec.md 修复代码", "/tmp/ws", chain).pathsRead.length, 3);
 });
 
+test("lowercase function names can anchor a declared call chain without file paths", () => {
+  const from = "/tmp/ws/run.ts";
+  const to = "/tmp/ws/finish.ts";
+  const chain = [{ path: from, line: 1, character: 1 }, { path: to, line: 1, character: 1 }];
+  const calls = [
+    { name: "read", value: { path: from, lines: [{ number: 1, text: "run()" }] } },
+    { name: "read", value: { path: to, lines: [{ number: 1, text: "finish()" }] } },
+    ...edge(from, to),
+  ];
+  assert.deepEqual(assessReviewEvidence({ status: "verified", calls }, "核对 run 到 finish", "/tmp/ws", chain).pathsRead, [from, to]);
+});
+
 test("non-code materials must be explicitly named and actually read", () => {
   const report = { status: "verified", calls: [read("/tmp/ws/brief.txt")] };
   assert.deepEqual(assessReviewEvidence(report, "审阅材料 /tmp/ws/brief.txt", "/tmp/ws", [], "非代码范围：仅处理非代码材料").pathsRead, ["/tmp/ws/brief.txt"]);
@@ -88,6 +100,29 @@ test("non-code materials must be explicitly named and actually read", () => {
   assert.equal(assessReviewEvidence(report, "做个站点 /tmp/ws/brief.txt", "/tmp/ws").code, "EVIDENCE_INSUFFICIENT");
   assert.equal(assessReviewEvidence(report, "执行 /tmp/ws/brief.txt", "/tmp/ws").code, "EVIDENCE_INSUFFICIENT");
   assert.equal(assessReviewEvidence(report, "审阅材料 /tmp/ws/brief.txt.bak", "/tmp/ws").code, "EVIDENCE_INSUFFICIENT");
+});
+
+test("explicit non-code scope survives API terminology in ordinary documents", () => {
+  const path = "/tmp/ws/api-guide.md";
+  const report = { status: "verified", calls: [{ name: "read", value: { path, lines: [{ number: 1, text: "API guide" }] } }] };
+  assert.deepEqual(assessReviewEvidence(report, `审阅文档 ${path} 的 API 说明`, "/tmp/ws", [], "非代码范围：仅处理非代码材料").pathsRead,
+    [path]);
+});
+
+test("configuration tasks require their named file but no synthetic call chain", () => {
+  const path = "/tmp/ws/package.json";
+  const report = { status: "verified", calls: [{ name: "read", value: { path, lines: [{ number: 1, text: "{}" }] } }] };
+  assert.deepEqual(assessReviewEvidence(report, `更新配置 ${path}`, "/tmp/ws", []).pathsRead, [path]);
+  const unnamed = { status: "verified", calls: [{ name: "read", value: { path: "/tmp/ws/other.json", lines: [{ number: 1, text: "{}" }] } }] };
+  assert.equal(assessReviewEvidence(unnamed, "更新配置", "/tmp/ws", []).code, "EVIDENCE_INSUFFICIENT");
+  assert.equal(assessReviewEvidence(report, `修复函数 ${path}`, "/tmp/ws", []).code, "EVIDENCE_INSUFFICIENT");
+});
+
+test("trusted review evidence cannot read outside the task root", () => {
+  const outside = "/Users/ning/Documents/private-note.txt";
+  const report = { status: "verified", calls: [read(outside)] };
+  assert.equal(assessReviewEvidence(report, `审阅材料 ${outside}`, "/tmp/ws", [], "非代码范围：仅处理非代码材料").code,
+    "WORKSPACE_ESCAPE");
 });
 
 test("code nodes bind one-based UTF-16 queries to half-open LSP ranges", () => {
@@ -313,7 +348,20 @@ test("locked review uses Host verified records, never model-reported paths", asy
   assert.deepEqual(run.spec.expectedRoute, { provider: "p", model: "m", reasoningEffort: null });
 });
 
-test("only a recognized LSP enters locked review and missing LSP permits explicit non-code scope only", async () => {
+test("a pass verdict that still lists issues is rejected", async () => {
+  const run = mockedAttempt({ result: Promise.resolve({ stopReason: "completed", structured: {
+    passed: true,
+    issues: [{ severity: "blocker", summary: "仍有阻断问题" }],
+    suggestions: ["修正"],
+    pathsRead: [],
+    reviewChain: [],
+  } }) });
+  const result = await runReviewAttempt(run.options);
+  assert.equal(result.failed, true);
+  assert.equal(result.code, "INVALID_OUTPUT");
+});
+
+test("only a recognized LSP enters source review while non-code and structured tasks can use read only", async () => {
   const legacy = { name: "lsp" };
   const nonCode = mockedAttempt();
   const getRead = nonCode.options.tools.get;
@@ -341,6 +389,13 @@ test("only a recognized LSP enters locked review and missing LSP permits explici
   recognized.options.loadLspApi = async () => ({ isReviewLspDefinition: value => value === legacy });
   await runReviewAttempt(recognized.options);
   assert.deepEqual(recognized.spec.tools.map(tool => tool.name), ["read", "lsp"]);
+
+  const config = mockedAttempt({ report: { status: "verified", calls: [read("/tmp/ws/package.json")] } });
+  const configRead = config.options.tools.get;
+  config.options.tools.get = name => name === "lsp" ? legacy : configRead(name);
+  config.options.contract = "更新配置 /tmp/ws/package.json";
+  assert.equal((await runReviewAttempt(config.options)).passed, true);
+  assert.deepEqual(config.spec.tools.map(tool => tool.name), ["read"]);
 });
 
 test("missing, partial or rejected seals and teardown failures cannot pass", async () => {

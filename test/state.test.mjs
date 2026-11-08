@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  beginReview, completeReview, createReviewState, failVisible, shouldStartReview,
+  beginReview, completeReview, createReviewState, failVisible, MAX_COMPLETED_REVIEWS, shouldStartReview,
 } from "../lib/state.js";
 
 const reviewer = { provider: "openai-codex", model: "gpt-6-astra" };
@@ -112,4 +112,19 @@ test("visible failures record disableAuto without inventing a pass", () => {
   assert.equal(last.passed, false);
   assert.equal(last.disableAuto, true);
   assert.equal(state.phase, "failed");
+});
+
+test("completed hashes are retained in insertion order with a fixed bound", () => {
+  const state = createReviewState();
+  for (let i = 0; i <= MAX_COMPLETED_REVIEWS; i++) {
+    const started = beginReview(state, { hash: `h-${i}`, reviewer, maxRevisions: 3 });
+    completeReview(state, {
+      hash: `h-${i}`,
+      generation: started.active.generation,
+      result: { passed: true, issues: [], suggestions: [], pathsRead: [] },
+    });
+  }
+  assert.equal(state.completed.size, MAX_COMPLETED_REVIEWS);
+  assert.equal(state.completed.has("h-0"), false);
+  assert.equal(state.completed.has(`h-${MAX_COMPLETED_REVIEWS}`), true);
 });

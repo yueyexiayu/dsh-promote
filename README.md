@@ -4,23 +4,23 @@
   <p><strong>当前对话写执行契约，次模型只读挑错，通过之前不要把初稿当成终稿。</strong></p>
   <p>DeepSeek Harness 桌面插件，外加编译契约的 <code>prompt</code> / promote skill。</p>
   <p><strong>简体中文</strong> · <a href="README.en.md">English</a></p>
-  <p><a href="LICENSE">MIT</a> · 版本 0.1.17</p>
+  <p><a href="LICENSE">MIT</a> · 版本 0.1.18</p>
   <p><a href="#核心能力">核心能力</a> · <a href="#工作方式">工作方式</a> · <a href="#快速开始">快速开始</a> · <a href="#配置">配置</a> · <a href="#验证">验证</a> · <a href="#常见问题">常见问题</a></p>
 </div>
 
 ---
 
-**Host 兼容要求：** 审核需要 Host 提供可验证的启动前只读保护和审核证据接口；能力缺失时返回 `READ_ONLY_UNAVAILABLE`，证据不足时不会判通过。2026-11-01 在本机定制 DSH Desktop 0.2.2-alpha.2 上完成了非代码材料及受支持的 TypeScript 调用链真实审核；这不代表所有 Host 或语言服务都已验证。仓库里的 `skills/prompt` 只负责**编译**契约，不执行任务。
+**Host 兼容要求：** 审核需要 Host 提供可验证的启动前只读保护、可信审核证据接口和工作区读取边界；能力缺失时返回 `READ_ONLY_UNAVAILABLE`，证据不足或读取越界时不会判通过。2026-11-01 在本机定制 DSH Desktop 0.2.2-alpha.2 上完成了非代码材料及受支持的 TypeScript 调用链真实审核；这不代表所有 Host 或语言服务都已验证。仓库里的 `skills/prompt` 只负责**编译**契约，不执行任务。
 
 ## 核心能力
 
 <table>
 <tr>
 <td><strong>自动审核</strong><br/>未引用的结束标记触发；写作轮在钩子内等审完才结束，不依赖主模型调用 <code>promote</code>。</td>
-<td><strong>次模型 A / B</strong><br/>先 A；A 撞当前会话主模型则用 B。可分别选择推理强度，并写入真实 <code>agentOptions</code>。</td>
+<td><strong>次模型 A / B</strong><br/>先 A；A 撞当前会话主模型或不在 Session 白名单中则用 B。可分别选择推理强度，并写入真实 <code>agentOptions</code>。</td>
 </tr>
 <tr>
-<td><strong>只读保护</strong><br/>启动前保护无法确认时拒绝审核；代码类任务的源码读取和 LSP 调用链必须有可验证的成功证据，不能依赖模型自报。</td>
+<td><strong>只读保护</strong><br/>启动前保护无法确认时拒绝审核；读取限制在当前任务根；代码类任务必须有可验证的源码和 LSP 证据，矛盾通过结论会被拒绝。</td>
 <td><strong>七条审核规则</strong><br/>现场、调用链、事实分层、范围、验收、本机规则、可执行且够短。侧栏与审核端同源。</td>
 </tr>
 <tr>
@@ -87,7 +87,7 @@ cp -R skills/prompt "$DSH_HOME/skills/prompt"
 
 - 配置次模型 A、B 和各自推理强度（A、B 不能相同）
 - 保存设置（写入 `$DSH_HOME/storages/promote/settings.json`，权限 0600）
-- 当前会话主模型若等于 A，本轮审核改用 B
+- 当前会话主模型若等于 A，或 A 不在 Session 获准的子模型白名单中，本轮审核改用 B
 
 ## 配置
 
@@ -98,9 +98,9 @@ cp -R skills/prompt "$DSH_HOME/skills/prompt"
 | 自动审核 | 开 | 关闭后可用显式工具 `promote` |
 | 审核超时 | 1200s | Host 常量，不上侧栏 |
 
-未配齐 A/B、A=B、或两者都等于当前会话主模型时，本轮不审，对话和侧栏可见失败，禁止主模型自审。主模型优先读取活跃会话 Agent 的当前选择；旧版 Agent 没有该接口时读取会话模型投影及请求头。无法确认时显示具体原因并拒绝审核，不以全局默认模型代替。
+未配齐 A/B、A=B、或两者都等于当前会话主模型时，本轮不审，对话和侧栏可见失败，禁止主模型自审。记录过 `subagent/model-selection-policy` 的 Session 只允许选择白名单内路由；未记录该策略的旧 Session 按 DSH 规则只允许当前主模型，而审核又禁止自审，因此会明确拒绝并要求使用新建会话。主模型优先读取活跃会话 Agent 的当前选择；旧版 Agent 没有该接口时读取会话模型投影及请求头。无法确认时显示具体原因并拒绝审核，不以全局默认模型代替。
 
-非代码材料审核需要用户在原始消息中单独一行声明 `非代码范围：仅处理非代码材料`，并在契约中指明要检查的实际材料。代码类审核需要可信 LSP；当前本机验收覆盖受限制的单项目 TypeScript，可信查询不支持 `tsconfig` 的 `extends`、`references` 或 TypeScript 插件。无法绑定源码快照或缺少调用链证据时会拒绝通过。
+非代码材料审核需要用户在原始消息中单独一行声明 `非代码范围：仅处理非代码材料`，并在契约中指明要检查的实际材料；普通文档提到 API、测试或部署不再因此被误判为源码任务。配置类文件必须被实际读取，但不会被逼造不存在的 LSP 调用链。源码审核需要可信 LSP；当前本机验收覆盖受限制的单项目 TypeScript，可信查询不支持 `tsconfig` 的 `extends`、`references` 或 TypeScript 插件。无法绑定源码快照、缺少调用链证据，或审核结论同时包含 `passed: true` 和 issues 时会拒绝通过。
 
 调用链节点使用一基行号和 UTF-16 列号；多跳链的中间节点另记录函数体内下一调用点。兼容 Host 须在同一受信 TypeScript 查询中证明该位置是调用点且属于对应函数。除具名函数、方法及 `const` 绑定的函数外，还支持 `const` 绑定、无继承的类表达式中的显式无重载构造器；内联匿名回调只在同文件的 `const` 箭头函数接收它，且该函数顶层直接调用对应形参时建立静态回调边。无法确认归属或调用关系时仍会拒绝通过；静态证据不证明运行时一定执行了相应分支或动态派发目标。
 
@@ -141,6 +141,8 @@ cp -R skills/prompt "$DSH_HOME/skills/prompt"
 **写了契约但没有「审核中」？** 引用行（`>`）和行内代码里的结束标记不审。prompt skill 那种围栏契约会审。改完插件须 ⌘Q。
 
 **主对话为什么像结束了？** 插件在 `turn-stopping` 钩子内等待本轮结果。超时等可重试失败会提示重试；`READ_ONLY_UNAVAILABLE` 需要先恢复可验证的保护能力，不会循环唤醒或提示立即重试。这不是官方 subagent 的 pending 工具心跳。
+
+**侧栏提示旧审核状态未知？** 先确认没有仍需保留的审核；随后点「解除未知审核」并完成确认。该操作会记录一次持久恢复，清除孤儿列表和溢出阻断，但不会把旧子任务结果算作通过。
 
 ## 社区与许可
 

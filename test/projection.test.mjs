@@ -98,7 +98,7 @@ test("retirement replay removes only the specified orphan without changing outco
   assert.deepEqual(replayed.reviewOutcome, before.reviewOutcome);
 });
 
-test("orphan tracking is bounded and overflow remains fail-closed after later completions", () => {
+test("orphan tracking is bounded and can only clear overflow through explicit recovery", () => {
   const event = (hash, status) => ({ type: "user/message", data: { source: {
     kind: "plugin:promote:status", promoteHash: hash, promoteStatus: status, promoteRetryable: false,
   }, content: [] } });
@@ -108,6 +108,10 @@ test("orphan tracking is bounded and overflow remains fail-closed after later co
   assert.equal(state.orphanOverflow, true);
   state = reduceDraftState(state, event(hashes[0], "passed"));
   assert.equal(state.orphanOverflow, true);
+  state = reduceDraftState(state, { type: "user/message", data: { source: { kind: "plugin:promote:reconcile" }, content: [] } });
+  assert.deepEqual(state.orphanReviewing, []);
+  assert.equal(state.orphanOverflow, false);
+  assert.equal(state.reviewOutcome, null);
   assert.deepEqual(draftStateSchema.parse(JSON.parse(JSON.stringify(state))), state);
   assert.throws(() => draftStateSchema.parse({ ...state, orphanOverflow: undefined }));
 });

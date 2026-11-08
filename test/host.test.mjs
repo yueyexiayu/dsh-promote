@@ -43,6 +43,11 @@ async function host(t, options = {}) {
   const agents = new Map();
   const settingsNs = [];
   const resolvedConfigs = [];
+  const testAllowedModels = options.omitPolicy ? undefined : options.allowedModels ?? [
+    options.main ?? { provider: "xai", model: "grok-4.6" },
+    { provider: "openai-codex", model: "gpt-6-astra" },
+    { provider: "xai", model: "grok-4.5" },
+  ];
   const ctx = {
     inject,
     effect(callback) { settingsNs.push(callback()); },
@@ -101,6 +106,11 @@ async function host(t, options = {}) {
       id,
       header: { cwd: "/tmp/ws", origin: "user", delegationDepth: 0 },
       append(_type, message) { delivered.push({ wake: false, message }); return { seq: delivered.length }; },
+      snapshotEvents() {
+        return testAllowedModels !== undefined
+          ? [{ type: "subagent/model-selection-policy", data: { allowedModels: testAllowedModels } }]
+          : [];
+      },
     };
     const agent = {
       session,
@@ -145,11 +155,11 @@ test("API refuses A=B and unassociated GET does not impersonate a default main m
   assert.ok(Array.isArray(open.rules.constraints) && open.rules.constraints.some((item) => item.includes("只读")));
   assert.ok(open.rules.criteria.some((item) => item.includes("lsp")));
   assert.ok(open.rules.constraints.some((item) => item.includes("lsp")));
-  assert.equal(open.version, "0.1.17");
+  assert.equal(open.version, "0.1.18");
   assert.equal(open.session.reviewing, false);
   const sessionOnly = await h.call("GET", "session-a", undefined, "session");
   assert.equal(sessionOnly.ok, true);
-  assert.equal(sessionOnly.version, "0.1.17");
+  assert.equal(sessionOnly.version, "0.1.18");
   assert.equal(sessionOnly.settings, undefined);
   assert.equal(sessionOnly.routes, undefined);
   assert.equal(sessionOnly.session.unassociated, false);
@@ -281,6 +291,65 @@ test("A matching the current session model uses B and never the main model", asy
   await h.listeners.get("agent/turn-stopping")({ agent, turn: 1, signal: { aborted: false } });
   assert.deepEqual(h.resolvedConfigs.at(-1), { provider: "openai-codex", model: "gpt-6-astra" });
   assert.equal(h.activations.length, 0);
+});
+
+test("Session model policy filters routes and selects an allowed reviewer", async (t) => {
+  const h = await host(t, {
+    main: { provider: "xai", model: "grok-4.6" },
+    allowedModels: [{ provider: "xai", model: "grok-4.5" }],
+  });
+  await h.call("POST", "session-a", {
+    modelA: "openai-codex/gpt-6-astra",
+    modelB: "xai/grok-4.5",
+    autoReview: true,
+  });
+  const agent = h.addAgent("session-a");
+  const listed = await h.call("GET", "session-a");
+  assert.deepEqual(listed.routes.map((route) => route.provider + "/" + route.model), ["xai/grok-4.5"]);
+  assert.equal(listed.session.usedSlot, "B");
+  assert.equal(listed.session.fallbackReason, "session-policy");
+  h.drafts.set("session-a", draftWith(`契约\n${MARKER}`));
+  await h.listeners.get("agent/turn-stopping")({ agent, turn: 1, signal: { aborted: false } });
+  assert.deepEqual(h.resolvedConfigs.at(-1), { provider: "xai", model: "grok-4.5" });
+});
+
+test("an empty recorded Session policy fails closed", async (t) => {
+  const h = await host(t, { allowedModels: [] });
+  await h.call("POST", "session-a", { modelA: "openai-codex/gpt-6-astra", modelB: "xai/grok-4.5", autoReview: true });
+  h.addAgent("session-a");
+  const listed = await h.call("GET", "session-a");
+  assert.deepEqual(listed.routes, []);
+  assert.equal(listed.session.autoDisabled, true);
+  assert.match(listed.session.autoDisabledReason, /策略无效/);
+});
+
+test("a legacy Session without a recorded policy only exposes the current main route", async (t) => {
+  const h = await host(t, { omitPolicy: true });
+  await h.call("POST", "session-a", { modelA: "openai-codex/gpt-6-astra", modelB: "xai/grok-4.5", autoReview: true });
+  const agent = h.addAgent("session-a");
+  const listed = await h.call("GET", "session-a");
+  assert.deepEqual(listed.routes.map((route) => route.provider + "/" + route.model), ["xai/grok-4.6"]);
+  assert.match(listed.session.reviewerError, /不在当前 Session 获准/);
+  h.drafts.set("session-a", draftWith(`契约\n${MARKER}`));
+  await h.listeners.get("agent/turn-stopping")({ agent, turn: 1, signal: { aborted: false } });
+  assert.equal(h.resolvedConfigs.length, 0);
+  assert.match(h.delivered.at(-1).message.content[0].text, /不在当前 Session 获准/);
+});
+
+test("a normal in-flight review is not presented as an orphan to reset", async (t) => {
+  const h = await host(t, { resolveCallConfig: () => new Promise(() => {}) });
+  await h.call("POST", "session-a", { modelA: "openai-codex/gpt-6-astra", modelB: "xai/grok-4.5", autoReview: true });
+  const agent = h.addAgent("session-a");
+  const text = `契约\n${MARKER}`;
+  h.drafts.set("session-a", draftWith(text));
+  const controller = new AbortController();
+  const pending = h.tools[0].execute({}, { agent, signal: controller.signal });
+  await waitUntil(() => h.resolvedConfigs.length === 1);
+  const active = await h.call("GET", "session-a", undefined, "session");
+  assert.equal(active.session.reviewing, true);
+  assert.equal(active.session.canResetOrphans, false);
+  controller.abort();
+  await pending;
 });
 
 test("saved reasoning effort is resolved before fail-closed review", async (t) => {
@@ -600,7 +669,7 @@ test("needs-revision is persisted for both explicit waiters and automatic runs",
       sessionProjections:{register(){const d=Object.assign(()=>{},{then:f=>{f({stateOf:()=>draft});return Promise.resolve()}});return d}, snapshot:()=>({values:{modelSelection:{next:{provider:'xai',model:'grok-4.6'}}}})},
       get:n=>n==='llm'?{resolveCallConfig:async()=>{}}:undefined };
     await apply(ctx,{settingsPath:process.argv[1]});
-    const makeAgent=id=>{ const session={id,header:{origin:'user',delegationDepth:0,cwd:'/tmp'},append:(_t,m)=>events.push(m)};
+    const makeAgent=id=>{ const session={id,header:{origin:'user',delegationDepth:0,cwd:'/tmp'},append:(_t,m)=>events.push(m),snapshotEvents:()=>[{type:'subagent/model-selection-policy',data:{allowedModels:[{provider:'xai',model:'grok-4.6'},{provider:'openai-codex',model:'gpt-6-astra'},{provider:'xai',model:'grok-4.5'}]}}]};
       const a={session,steer:m=>events.push(m)}; agents.set(id,a); return a; };
     const explicit=makeAgent('explicit');
     const result=await tools[0].execute({}, {agent:explicit});
@@ -712,7 +781,7 @@ test("a started unresolved attempt is not retired when its outer race aborts", a
     const {createDraftState,reduceDraftState}=await import('./lib/projection.js');
     let draft; const events=[],handlers=new Map(),tools=[]; const text=x=>x+'\\n[END OF EXECUTION PROMPT]';
     const make=x=>({turn:1,visibleText:text(x),hasTrigger:true,hash:contractHash(text(x)),interrupted:false,tools:[],lastUserText:''});
-    const session={id:'s',header:{origin:'user',delegationDepth:0,cwd:'/tmp'},append:(_t,m)=>events.push(m)}; const agent={session,steer:m=>events.push(m)};
+    const session={id:'s',header:{origin:'user',delegationDepth:0,cwd:'/tmp'},append:(_t,m)=>events.push(m),snapshotEvents:()=>[{type:'subagent/model-selection-policy',data:{allowedModels:[{provider:'xai',model:'grok-4.6'},{provider:'openai-codex',model:'gpt-6-astra'},{provider:'xai',model:'grok-4.5'}]}}]}; const agent={session,steer:m=>events.push(m)};
     const ctx={loader:{import:async()=>({createUserMessage:v=>v})},effect:f=>f(),on:(n,f)=>handlers.set(n,f),tools:{register:v=>tools.push(v)},connection:{fetch:{register(){}}},agents:{get:()=>agent},subagents:{},sessionProjections:{register(){const d=Object.assign(()=>{},{then:f=>{f({stateOf:()=>draft});return Promise.resolve()}});return d},snapshot:()=>({values:{modelSelection:{next:{provider:'xai',model:'grok-4.6'}}}})},get:n=>n==='llm'?{resolveCallConfig:async()=>{}}:undefined};
     await apply(ctx,{settingsPath:process.argv[1]}); draft=make('A'); const a=tools[0].execute({}, {agent});
     while(attempts===0) await Promise.resolve(); draft=make('B'); const b=await tools[0].execute({}, {agent});
@@ -740,7 +809,7 @@ test("timeout during a started attempt remains unknown until cleanup is confirme
     const {apply}=await import('./lib/index.js'); const {contractHash}=await import('./lib/extract.js');
     const text='contract\\n[END OF EXECUTION PROMPT]'; const draft={turn:1,visibleText:text,hasTrigger:true,hash:contractHash(text),interrupted:false,tools:[],lastUserText:''};
     const events=[],handlers=new Map(),tools=[];
-    const session={id:'s',header:{origin:'user',delegationDepth:0,cwd:'/tmp'},append:(_t,m)=>events.push(m)}; const agent={session,steer:m=>events.push(m)};
+    const session={id:'s',header:{origin:'user',delegationDepth:0,cwd:'/tmp'},append:(_t,m)=>events.push(m),snapshotEvents:()=>[{type:'subagent/model-selection-policy',data:{allowedModels:[{provider:'xai',model:'grok-4.6'},{provider:'openai-codex',model:'gpt-6-astra'},{provider:'xai',model:'grok-4.5'}]}}]}; const agent={session,steer:m=>events.push(m)};
     const ctx={loader:{import:async()=>({createUserMessage:v=>v})},effect:f=>f(),on:(n,f)=>handlers.set(n,f),tools:{register:v=>tools.push(v)},connection:{fetch:{register(){}}},agents:{get:()=>agent},subagents:{},sessionProjections:{register(){const d=Object.assign(()=>{},{then:f=>{f({stateOf:()=>draft});return Promise.resolve()}});return d},snapshot:()=>({values:{modelSelection:{next:{provider:'xai',model:'grok-4.6'}}}})},get:n=>n==='llm'?{resolveCallConfig:async()=>{}}:undefined};
     await apply(ctx,{settingsPath:process.argv[1]});
     const result=await tools[0].execute({}, {agent});
@@ -762,7 +831,7 @@ test("unloading a started attempt reports unknown cleanup rather than an aborted
     const {apply}=await import('./lib/index.js'); const {contractHash}=await import('./lib/extract.js');
     const text='contract\\n[END OF EXECUTION PROMPT]'; const draft={turn:1,visibleText:text,hasTrigger:true,hash:contractHash(text),interrupted:false,tools:[],lastUserText:''};
     const effects=[],handlers=new Map(),tools=[];
-    const session={id:'s',header:{origin:'user',delegationDepth:0,cwd:'/tmp'},append:()=>{}}; const agent={session,steer:()=>{}};
+    const session={id:'s',header:{origin:'user',delegationDepth:0,cwd:'/tmp'},append:()=>{},snapshotEvents:()=>[{type:'subagent/model-selection-policy',data:{allowedModels:[{provider:'xai',model:'grok-4.6'},{provider:'openai-codex',model:'gpt-6-astra'},{provider:'xai',model:'grok-4.5'}]}}]}; const agent={session,steer:()=>{}};
     const ctx={loader:{import:async()=>({createUserMessage:v=>v})},effect:f=>effects.push(f()),on:(n,f)=>handlers.set(n,f),tools:{register:v=>tools.push(v)},connection:{fetch:{register(){}}},agents:{get:()=>agent},subagents:{},sessionProjections:{register(){const d=Object.assign(()=>{},{then:f=>{f({stateOf:()=>draft});return Promise.resolve()}});return d},snapshot:()=>({values:{modelSelection:{next:{provider:'xai',model:'grok-4.6'}}}})},get:n=>n==='llm'?{resolveCallConfig:async()=>{}}:undefined};
     await apply(ctx,{settingsPath:process.argv[1]}); const pending=tools[0].execute({}, {agent});
     while(!started) await Promise.resolve(); effects.forEach(fn=>fn?.());
@@ -784,7 +853,7 @@ test("cleanup failure leaves a persistent orphan and blocks a repeat", async (t)
     const {apply}=await import('./lib/index.js'); const {contractHash}=await import('./lib/extract.js');
     const {reduceDraftState,createDraftState}=await import('./lib/projection.js');
     const text='contract\\n[END OF EXECUTION PROMPT]'; const draft={turn:1,visibleText:text,hasTrigger:true,hash:contractHash(text),interrupted:false,tools:[],lastUserText:''};
-    const events=[],tools=[]; const session={id:'s',header:{origin:'user',delegationDepth:0,cwd:'/tmp'},append:(_t,m)=>events.push(m)}; const agent={session,steer:m=>events.push(m)};
+    const events=[],tools=[]; const session={id:'s',header:{origin:'user',delegationDepth:0,cwd:'/tmp'},append:(_t,m)=>events.push(m),snapshotEvents:()=>[{type:'subagent/model-selection-policy',data:{allowedModels:[{provider:'xai',model:'grok-4.6'},{provider:'openai-codex',model:'gpt-6-astra'},{provider:'xai',model:'grok-4.5'}]}}]}; const agent={session,steer:m=>events.push(m)};
     const ctx={loader:{import:async()=>({createUserMessage:v=>v})},effect:f=>f(),on:()=>{},tools:{register:v=>tools.push(v)},connection:{fetch:{register(){}}},agents:{get:()=>agent},subagents:{},sessionProjections:{register(){const d=Object.assign(()=>{},{then:f=>{f({stateOf:()=>draft});return Promise.resolve()}});return d},snapshot:()=>({values:{modelSelection:{next:{provider:'xai',model:'grok-4.6'}}}})},get:n=>n==='llm'?{resolveCallConfig:async()=>{}}:undefined};
     await apply(ctx,{settingsPath:process.argv[1]}); const result=await tools[0].execute({}, {agent});
     assert.equal(result.code,'ORPHANED'); assert.equal(result.causeCode,'CLEANUP_FAILED');
@@ -878,6 +947,16 @@ test("orphan ledger prevents A→B→A restart and overflow blocks new reviews",
   assert.equal(denied.code, "ORPHANED");
   assert.match(denied.error, /溢出/);
   assert.equal(h.resolvedConfigs.length, 0);
+  const confirmationMissing = await h.call("POST", "session-a", {}, "reconcile");
+  assert.equal(confirmationMissing.ok, false);
+  const reset = await h.call("POST", "session-a", { confirm: true }, "reconcile");
+  assert.equal(reset.ok, true);
+  const resetEvent = h.delivered.at(-1).message;
+  assert.equal(resetEvent.source.kind, "plugin:promote:reconcile");
+  const reconciled = reduceDraftState(overflowing, { type: "user/message", data: resetEvent });
+  assert.deepEqual(reconciled.orphanReviewing, []);
+  assert.equal(reconciled.orphanOverflow, false);
+  assert.equal(reconciled.reviewOutcome, null);
 });
 
 test("credential login recovery permits explicit retry in session and after replay", async (t) => {
