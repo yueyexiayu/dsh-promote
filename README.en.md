@@ -4,7 +4,7 @@
   <p><strong>Write an execution contract in the current chat. A secondary model reviews it read-only. Do not treat a draft as final until it passes.</strong></p>
   <p>A DeepSeek Harness desktop plugin, plus the <code>prompt</code> / promote skill that compiles contracts.</p>
   <p><a href="README.md">简体中文</a> · <strong>English</strong></p>
-  <p><a href="LICENSE">MIT</a> · version 0.1.16</p>
+  <p><a href="LICENSE">MIT</a> · version 0.1.17</p>
   <p><a href="#features">Features</a> · <a href="#how-it-works">How it works</a> · <a href="#quick-start">Quick start</a> · <a href="#configuration">Configuration</a> · <a href="#validation">Validation</a> · <a href="#faq">FAQ</a></p>
 </div>
 
@@ -25,7 +25,7 @@
 </tr>
 <tr>
 <td><strong>Bounded loop</strong><br/>Default 3 rounds (1–5). Until a final or unqualified mark appears, the draft is not qualified.</td>
-<td><strong>prompt skill</strong><br/>Compiles confirmed goals into a contract for a new session. Install to <code>~/.dsh/skills/prompt</code>.</td>
+<td><strong>prompt skill</strong><br/>Clarifies unknowns that would change the result, adds a structural-design gate for non-trivial code work, and compiles the goal into a contract for a new session. Install to <code>~/.dsh/skills/prompt</code>.</td>
 </tr>
 </table>
 
@@ -33,7 +33,7 @@
 
 ![The main chat writes a contract, the plugin marks it in review, a secondary model inspects the repo read-only, notes return for revision, then pass or exhaust](docs/assets/workflow.en.svg)
 
-1. The current chat (or the prompt skill) writes a contract whose body includes `[END OF EXECUTION PROMPT]`.
+1. The current chat (or the prompt skill) clarifies blocking unknowns and writes a contract whose body includes `[END OF EXECUTION PROMPT]`.
 2. The plugin injects in-review status and awaits the secondary model inside `turn-stopping`.
 3. When Host protection and evidence are available, the plugin runs the review and marks a passing draft final. Missing capability fails explicitly; retryable failures are reported, with a unified timeout of 1200s.
 4. The explicit `promote` tool can still wait or join an in-flight review of the same hash.

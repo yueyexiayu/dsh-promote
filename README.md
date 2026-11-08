@@ -4,7 +4,7 @@
   <p><strong>当前对话写执行契约，次模型只读挑错，通过之前不要把初稿当成终稿。</strong></p>
   <p>DeepSeek Harness 桌面插件，外加编译契约的 <code>prompt</code> / promote skill。</p>
   <p><strong>简体中文</strong> · <a href="README.en.md">English</a></p>
-  <p><a href="LICENSE">MIT</a> · 版本 0.1.16</p>
+  <p><a href="LICENSE">MIT</a> · 版本 0.1.17</p>
   <p><a href="#核心能力">核心能力</a> · <a href="#工作方式">工作方式</a> · <a href="#快速开始">快速开始</a> · <a href="#配置">配置</a> · <a href="#验证">验证</a> · <a href="#常见问题">常见问题</a></p>
 </div>
 
@@ -25,7 +25,7 @@
 </tr>
 <tr>
 <td><strong>循环有上限</strong><br/>默认最多 3 轮（1–5）。未见终稿/未通过标记前，初稿不算合格。</td>
-<td><strong>prompt skill</strong><br/>把已确认目标编成可复制到新会话的执行契约。安装到 <code>~/.dsh/skills/prompt</code>。</td>
+<td><strong>prompt skill</strong><br/>先澄清会改变结果的未知项；非平凡代码任务写入结构设计门，再把目标编成可复制到新会话的执行契约。安装到 <code>~/.dsh/skills/prompt</code>。</td>
 </tr>
 </table>
 
@@ -79,7 +79,7 @@ mkdir -p "$DSH_HOME/skills"
 cp -R skills/prompt "$DSH_HOME/skills/prompt"
 ```
 
-在对话里说「生成 prompt」「生成 promote」或使用 `/prompt`。Skill 只编译契约，不改项目。
+在对话里说「生成 prompt」「生成 promote」或使用 `/prompt`。Skill 会先检查是否必须澄清，并按需把类型、签名和模块边界的设计阶段写进契约；它只编译契约，不执行设计或项目修改。
 
 ### 4. 配置并验证
 
