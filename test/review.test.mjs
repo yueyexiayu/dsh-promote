@@ -1,5 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { assessReviewEvidence, runReviewAttempt } from "../lib/review.js";
 import { pathToFileURL } from "node:url";
 
@@ -346,6 +349,22 @@ test("locked review uses Host verified records, never model-reported paths", asy
   assert.equal(run.spec.trustedReview, true);
   assert.equal(run.spec.request.outputSchema.type, "object");
   assert.deepEqual(run.spec.expectedRoute, { provider: "p", model: "m", reasoningEffort: null });
+});
+
+test("locked review canonicalizes a symlinked workspace before evidence checks", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "promote-review-realpath-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const real = join(root, "real");
+  const linked = join(root, "linked");
+  await mkdir(real);
+  await symlink(real, linked, "dir");
+  await writeFile(join(real, "brief.txt"), "source");
+  const path = await realpath(join(real, "brief.txt"));
+  const run = mockedAttempt({ report: { status: "verified", calls: [read(path)] } });
+  run.options.cwd = linked;
+  run.options.contract = `审阅材料 ${path}`;
+  const result = await runReviewAttempt(run.options);
+  assert.equal(result.passed, true, JSON.stringify(result));
 });
 
 test("a pass verdict that still lists issues is rejected", async () => {
