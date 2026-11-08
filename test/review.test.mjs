@@ -112,6 +112,13 @@ test("explicit non-code scope survives API terminology in ordinary documents", (
     [path]);
 });
 
+test("the original user request can supply the material-task intent omitted from the contract", () => {
+  const path = "/tmp/ws/brief.md";
+  const report = { status: "verified", calls: [read(path)] };
+  assert.deepEqual(assessReviewEvidence(report, `读取 ${path} 并报告标题`, "/tmp/ws", [],
+    "非代码范围：仅处理非代码材料\n请读取文档并报告标题").pathsRead, [path]);
+});
+
 test("configuration tasks require their named file but no synthetic call chain", () => {
   const path = "/tmp/ws/package.json";
   const report = { status: "verified", calls: [{ name: "read", value: { path, lines: [{ number: 1, text: "{}" }] } }] };
