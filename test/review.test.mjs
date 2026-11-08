@@ -367,7 +367,7 @@ test("locked review canonicalizes a symlinked workspace before evidence checks",
   assert.equal(result.passed, true, JSON.stringify(result));
 });
 
-test("a pass verdict that still lists issues is rejected", async () => {
+test("a pass verdict that still lists a blocking issue is rejected", async () => {
   const run = mockedAttempt({ result: Promise.resolve({ stopReason: "completed", structured: {
     passed: true,
     issues: [{ severity: "blocker", summary: "仍有阻断问题" }],
@@ -378,6 +378,19 @@ test("a pass verdict that still lists issues is rejected", async () => {
   const result = await runReviewAttempt(run.options);
   assert.equal(result.failed, true);
   assert.equal(result.code, "INVALID_OUTPUT");
+});
+
+test("a pass verdict may retain non-blocking cleanup notes", async () => {
+  const run = mockedAttempt({ result: Promise.resolve({ stopReason: "completed", structured: {
+    passed: true,
+    issues: [{ severity: "minor", summary: "可补充标题依据" }],
+    suggestions: ["补充标题依据"],
+    pathsRead: [],
+    reviewChain: [],
+  } }) });
+  const result = await runReviewAttempt(run.options);
+  assert.equal(result.passed, true);
+  assert.equal(result.issues[0].severity, "minor");
 });
 
 test("only a recognized LSP enters source review while non-code and structured tasks can use read only", async () => {

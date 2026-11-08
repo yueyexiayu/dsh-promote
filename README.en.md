@@ -4,7 +4,7 @@
   <p><strong>Write an execution contract in the current chat. A secondary model reviews it read-only. Do not treat a draft as final until it passes.</strong></p>
   <p>A DeepSeek Harness desktop plugin, plus the <code>prompt</code> / promote skill that compiles contracts.</p>
   <p><a href="README.md">简体中文</a> · <strong>English</strong></p>
-  <p><a href="LICENSE">MIT</a> · version 0.1.19</p>
+  <p><a href="LICENSE">MIT</a> · version 0.1.20</p>
   <p><a href="#features">Features</a> · <a href="#how-it-works">How it works</a> · <a href="#quick-start">Quick start</a> · <a href="#configuration">Configuration</a> · <a href="#validation">Validation</a> · <a href="#faq">FAQ</a></p>
 </div>
 
@@ -20,7 +20,7 @@
 <td><strong>Models A / B</strong><br/>Try A first; use B when A matches the current session model or is outside the Session route policy. Reasoning effort is passed in real <code>agentOptions</code>.</td>
 </tr>
 <tr>
-<td><strong>Read-only protection</strong><br/>Review is refused when pre-activation protection cannot be verified. Reads are confined to the task root, and a pass that still lists issues is rejected.</td>
+<td><strong>Read-only protection</strong><br/>Review is refused when pre-activation protection cannot be verified. Reads are confined to the task root, and a pass with blocking issues is rejected.</td>
 <td><strong>Seven review rules</strong><br/>Evidence, call chain, fact layers, scope, acceptance, local rules, and brevity. Sidebar and reviewer share the same list.</td>
 </tr>
 <tr>
@@ -100,7 +100,7 @@ Quit DeepSeek Harness fully (Cmd+Q) and reopen. Open **Promote** in the right si
 
 Missing A/B, A equals B, or both matching the current session model: no review this round, visible failure in chat and sidebar, no self-review. Sessions with a recorded `subagent/model-selection-policy` only expose routes in its allowlist. For legacy sessions without that policy, DSH permits only the current main route; because self-review is forbidden, review is explicitly refused and a new session is required. The current model comes from the active session Agent's selection; older Agents without that API use the session model projection and request header. If the route cannot be confirmed, review is refused with a specific reason; the global default is not substituted.
 
-For non-code material review, the original user message must contain the standalone line `non-code scope: non-code materials only`, and the contract must identify the material to inspect; ordinary documents mentioning APIs or tests are no longer misclassified as source code. Configuration files must be read but do not require a fabricated LSP call chain. Code reviews require a trusted LSP. Local acceptance covered a restricted single TypeScript project; trusted queries do not support `tsconfig` `extends`, `references`, or TypeScript plugins. Review fails closed when source snapshots cannot be bound, call-chain evidence is missing, or a `passed: true` verdict still contains issues.
+For non-code material review, the original user message must contain the standalone line `non-code scope: non-code materials only`, and the contract must identify the material to inspect; ordinary documents mentioning APIs or tests are no longer misclassified as source code. Configuration files must be read but do not require a fabricated LSP call chain. Code reviews require a trusted LSP. Local acceptance covered a restricted single TypeScript project; trusted queries do not support `tsconfig` `extends`, `references`, or TypeScript plugins. Review fails closed when source snapshots cannot be bound, call-chain evidence is missing, or a `passed: true` verdict still includes a blocking issue; non-blocking notes such as `minor` do not trigger another review.
 
 Call-chain nodes use one-based line and UTF-16 character coordinates. Each intermediate node in a multi-hop chain also identifies the next call site inside its function. A compatible Host must prove in the same trusted TypeScript query that the position is a call and belongs to that function. In addition to named functions, methods, and `const`-bound functions, this supports explicit non-overloaded constructors in `const`-bound class expressions without inheritance. An inline anonymous callback forms a static edge only when its receiver is a `const`-bound arrow function in the same file that directly invokes the corresponding parameter at the top level of its body. Unverified ownership or invocation still fails closed; static evidence does not prove that a runtime branch or dynamic dispatch target actually executes.
 
