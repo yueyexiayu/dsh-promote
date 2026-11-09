@@ -483,3 +483,14 @@ test("Host-observed forbidden write is classified without accepting partial evid
     inspectReviewFailure: () => ({ code: "WRITE_TOOL" }) });
   assert.equal((await runReviewAttempt(run.options)).code, "WRITE_TOOL");
 });
+
+test("Host-observed workspace escape is classified with an actionable code", async () => {
+  const run = mockedAttempt({ result: Promise.reject(Object.assign(new Error("structured evidence is incomplete"), {
+    code: "FS_WORKSPACE_ESCAPE",
+  })) });
+  run.options.loadEvidenceApi = async () => ({ inspectReviewEvidence: () => { throw new Error("incomplete"); },
+    inspectReviewFailure: () => ({ code: "FS_WORKSPACE_ESCAPE" }) });
+  const result = await runReviewAttempt(run.options);
+  assert.equal(result.code, "WORKSPACE_ESCAPE");
+  assert.match(result.reason, /WORKSPACE_ESCAPE/);
+});

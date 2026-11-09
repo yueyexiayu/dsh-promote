@@ -4,7 +4,7 @@
   <p><strong>当前对话写执行契约，次模型只读挑错，通过之前不要把初稿当成终稿。</strong></p>
   <p>DeepSeek Harness 桌面插件，外加编译契约的 <code>prompt</code> / promote skill。</p>
   <p><strong>简体中文</strong> · <a href="README.en.md">English</a></p>
-  <p><a href="LICENSE">MIT</a> · 版本 0.1.22</p>
+  <p><a href="LICENSE">MIT</a> · 版本 0.1.23</p>
   <p><a href="#核心能力">核心能力</a> · <a href="#工作方式">工作方式</a> · <a href="#快速开始">快速开始</a> · <a href="#配置">配置</a> · <a href="#验证">验证</a> · <a href="#常见问题">常见问题</a></p>
 </div>
 
@@ -140,7 +140,7 @@ cp -R skills/prompt "$DSH_HOME/skills/prompt"
 
 **写了契约但没有「审核中」？** 引用行（`>`）和行内代码里的结束标记不审。prompt skill 那种围栏契约会审。改完插件须 ⌘Q。
 
-**主对话为什么像结束了？** 插件在 `turn-stopping` 钩子内等待本轮结果。超时等可重试失败会提示重试；`READ_ONLY_UNAVAILABLE` 需要先恢复可验证的保护能力，不会循环唤醒或提示立即重试。这不是官方 subagent 的 pending 工具心跳。
+**主对话为什么像结束了？** 插件在 `turn-stopping` 钩子内等待本轮结果。超时等可重试失败会提示重试；`READ_ONLY_UNAVAILABLE` 需要先恢复可验证的保护能力，`WORKSPACE_ESCAPE` 需要修改越界契约，两者都不会循环唤醒或提示立即重试。这不是官方 subagent 的 pending 工具心跳。
 
 **侧栏提示旧审核状态未知？** 先确认没有仍需保留的审核；随后点「解除未知审核」并完成确认。该操作会记录一次持久恢复，清除孤儿列表和溢出阻断，但不会把旧子任务结果算作通过。
 

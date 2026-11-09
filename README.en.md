@@ -4,7 +4,7 @@
   <p><strong>Write an execution contract in the current chat. A secondary model reviews it read-only. Do not treat a draft as final until it passes.</strong></p>
   <p>A DeepSeek Harness desktop plugin, plus the <code>prompt</code> / promote skill that compiles contracts.</p>
   <p><a href="README.md">简体中文</a> · <strong>English</strong></p>
-  <p><a href="LICENSE">MIT</a> · version 0.1.22</p>
+  <p><a href="LICENSE">MIT</a> · version 0.1.23</p>
   <p><a href="#features">Features</a> · <a href="#how-it-works">How it works</a> · <a href="#quick-start">Quick start</a> · <a href="#configuration">Configuration</a> · <a href="#validation">Validation</a> · <a href="#faq">FAQ</a></p>
 </div>
 
@@ -140,7 +140,7 @@ The prompt skill requires LSP call-chain verification for code-related contracts
 
 **I wrote a contract but nothing was marked in review?** Blockquote (`>`) and inline-code markers are ignored. A prompt-skill fenced contract is reviewed. Quit fully with Cmd+Q after plugin changes.
 
-**Why did the main chat look finished?** The `turn-stopping` hook waits for the attempt. Retryable failures such as timeouts can prompt a retry; `READ_ONLY_UNAVAILABLE` requires verified protection to be restored first and does not repeatedly wake the parent or request an immediate retry. This is not the official subagent pending-tool heartbeat.
+**Why did the main chat look finished?** The `turn-stopping` hook waits for the attempt. Retryable failures such as timeouts can prompt a retry; `READ_ONLY_UNAVAILABLE` requires verified protection to be restored first, while `WORKSPACE_ESCAPE` requires a contract that stays inside the workspace. Neither repeatedly wakes the parent or requests an immediate retry. This is not the official subagent pending-tool heartbeat.
 
 **The sidebar reports an unknown old review?** First verify that no review state still matters. Then choose **Clear unknown review** and confirm. This records an explicit recovery, clears the orphan ledger and overflow block, and never treats an old child result as a pass.
 
