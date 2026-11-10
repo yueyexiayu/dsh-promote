@@ -85,12 +85,24 @@ async function host(t, options = {}) {
       },
     },
     get(name) {
+      if (name === "sessionController") {
+        return {
+          modelCatalog: async () => options.catalog === "reject" ? Promise.reject(new Error("catalog offline")) : options.catalog ?? {
+            groups: [
+              { id: "xai", name: "xAI", models: [
+                { id: "grok-4.6", name: "Grok 4.6", reasoning: { defaultEffort: "high", efforts: [{ id: "low", name: "Low" }, { id: "high", name: "High" }, { id: "xhigh", name: "Extra high" }] } },
+                { id: "grok-4.5", name: "Grok 4.5" },
+              ] },
+              { id: "openai-codex", name: "OpenAI Codex", models: [
+                { id: "gpt-6-astra", name: "Astra", reasoning: { efforts: [{ id: "medium", name: "Medium" }, { id: "high", name: "High" }] } },
+                { id: "gpt-6.1-sol", name: "Sol" },
+              ] },
+            ],
+          },
+        };
+      }
       if (name === "llm") {
         return {
-          listProviders: () => [{ id: "xai", name: "xai" }, { id: "openai-codex", name: "codex" }],
-          listModels: async (id) => id === "xai"
-            ? [{ id: "grok-4.6", name: "Grok 4.6", reasoning: { defaultEffort: "high", efforts: [{ id: "low", name: "low" }, { id: "high", name: "high" }, { id: "xhigh", name: "xhigh" }] } }, { id: "grok-4.5", name: "Grok 4.5" }]
-            : [{ id: "gpt-6-astra", name: "Astra", reasoning: { efforts: [{ id: "medium" }, { id: "high" }] } }],
           resolveCallConfig: async (config, signal) => {
             resolvedConfigs.push(config);
             return options.resolveCallConfig?.(config, signal);
@@ -135,7 +147,7 @@ async function host(t, options = {}) {
 }
 
 test("Host inject matches the services apply reads directly", () => {
-  assert.deepEqual(inject, ["connection", "tools", "loader", "agents", "subagents", "sessionProjections"]);
+  assert.deepEqual(inject, ["connection", "tools", "loader", "agents", "subagents", "sessionProjections", "sessionController"]);
 });
 
 test("API refuses A=B and unassociated GET does not impersonate a default main model", async (t) => {
@@ -155,11 +167,11 @@ test("API refuses A=B and unassociated GET does not impersonate a default main m
   assert.ok(Array.isArray(open.rules.constraints) && open.rules.constraints.some((item) => item.includes("只读")));
   assert.ok(open.rules.criteria.some((item) => item.includes("lsp")));
   assert.ok(open.rules.constraints.some((item) => item.includes("lsp")));
-  assert.equal(open.version, "0.1.23");
+  assert.equal(open.version, "0.1.25");
   assert.equal(open.session.reviewing, false);
   const sessionOnly = await h.call("GET", "session-a", undefined, "session");
   assert.equal(sessionOnly.ok, true);
-  assert.equal(sessionOnly.version, "0.1.23");
+  assert.equal(sessionOnly.version, "0.1.25");
   assert.equal(sessionOnly.settings, undefined);
   assert.equal(sessionOnly.routes, undefined);
   assert.equal(sessionOnly.session.unassociated, false);
@@ -293,7 +305,7 @@ test("A matching the current session model uses B and never the main model", asy
   assert.equal(h.activations.length, 0);
 });
 
-test("Session model policy filters routes and selects an allowed reviewer", async (t) => {
+test("all DSH configured routes remain selectable and review uses the selected route", async (t) => {
   const h = await host(t, {
     main: { provider: "xai", model: "grok-4.6" },
     allowedModels: [{ provider: "xai", model: "grok-4.5" }],
@@ -305,35 +317,44 @@ test("Session model policy filters routes and selects an allowed reviewer", asyn
   });
   const agent = h.addAgent("session-a");
   const listed = await h.call("GET", "session-a");
-  assert.deepEqual(listed.routes.map((route) => route.provider + "/" + route.model), ["xai/grok-4.5"]);
-  assert.equal(listed.session.usedSlot, "B");
-  assert.equal(listed.session.fallbackReason, "session-policy");
+  assert.deepEqual(listed.routes.map((route) => route.provider + "/" + route.model), [
+    "xai/grok-4.6", "xai/grok-4.5", "openai-codex/gpt-6-astra", "openai-codex/gpt-6.1-sol",
+  ]);
+  assert.equal(listed.session.usedSlot, "A");
+  assert.equal(listed.session.fallbackReason, null);
   h.drafts.set("session-a", draftWith(`契约\n${MARKER}`));
   await h.listeners.get("agent/turn-stopping")({ agent, turn: 1, signal: { aborted: false } });
-  assert.deepEqual(h.resolvedConfigs.at(-1), { provider: "xai", model: "grok-4.5" });
+  assert.deepEqual(h.resolvedConfigs.at(-1), { provider: "openai-codex", model: "gpt-6-astra" });
 });
 
-test("an empty recorded Session policy fails closed", async (t) => {
+test("an empty recorded Session policy does not hide DSH configured routes", async (t) => {
   const h = await host(t, { allowedModels: [] });
   await h.call("POST", "session-a", { modelA: "openai-codex/gpt-6-astra", modelB: "xai/grok-4.5", autoReview: true });
   h.addAgent("session-a");
   const listed = await h.call("GET", "session-a");
-  assert.deepEqual(listed.routes, []);
-  assert.equal(listed.session.autoDisabled, true);
-  assert.match(listed.session.autoDisabledReason, /策略无效/);
+  assert.equal(listed.routes.length, 4);
+  assert.equal(listed.session.usedSlot, "A");
+  assert.doesNotMatch(listed.session.autoDisabledReason ?? "", /策略|白名单|获准/);
 });
 
-test("a legacy Session without a recorded policy only exposes the current main route", async (t) => {
+test("a failed DSH model catalog is visible and never becomes an empty or partial picker", async (t) => {
+  const h = await host(t, { catalog: "reject" });
+  const listed = await h.call("GET", "session-a");
+  assert.equal(listed.ok, true);
+  assert.deepEqual(listed.routes, []);
+  assert.match(listed.routesError, /catalog offline/);
+});
+
+test("a legacy Session without a recorded policy still invokes the selected DSH route", async (t) => {
   const h = await host(t, { omitPolicy: true });
   await h.call("POST", "session-a", { modelA: "openai-codex/gpt-6-astra", modelB: "xai/grok-4.5", autoReview: true });
   const agent = h.addAgent("session-a");
   const listed = await h.call("GET", "session-a");
-  assert.deepEqual(listed.routes.map((route) => route.provider + "/" + route.model), ["xai/grok-4.6"]);
-  assert.match(listed.session.reviewerError, /不在当前 Session 获准/);
+  assert.equal(listed.routes.length, 4);
+  assert.equal(listed.session.usedSlot, "A");
   h.drafts.set("session-a", draftWith(`契约\n${MARKER}`));
   await h.listeners.get("agent/turn-stopping")({ agent, turn: 1, signal: { aborted: false } });
-  assert.equal(h.resolvedConfigs.length, 0);
-  assert.match(h.delivered.at(-1).message.content[0].text, /不在当前 Session 获准/);
+  assert.deepEqual(h.resolvedConfigs.at(-1), { provider: "openai-codex", model: "gpt-6-astra" });
 });
 
 test("a normal in-flight review is not presented as an orphan to reset", async (t) => {

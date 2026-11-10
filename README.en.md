@@ -4,7 +4,7 @@
   <p><strong>Write an execution contract in the current chat. A secondary model reviews it read-only. Do not treat a draft as final until it passes.</strong></p>
   <p>A DeepSeek Harness desktop plugin, plus the <code>prompt</code> / promote skill that compiles contracts.</p>
   <p><a href="README.md">简体中文</a> · <strong>English</strong></p>
-  <p><a href="LICENSE">MIT</a> · version 0.1.23</p>
+  <p><a href="LICENSE">MIT</a> · version 0.1.25</p>
   <p><a href="#features">Features</a> · <a href="#how-it-works">How it works</a> · <a href="#quick-start">Quick start</a> · <a href="#configuration">Configuration</a> · <a href="#validation">Validation</a> · <a href="#faq">FAQ</a></p>
 </div>
 
@@ -87,7 +87,7 @@ Quit DeepSeek Harness fully (Cmd+Q) and reopen. Open **Promote** in the right si
 
 - Set secondary models A and B and each reasoning effort (A and B cannot be the same)
 - Save (writes `$DSH_HOME/storages/promote/settings.json`, mode 0600)
-- If the current session model equals A, or A is outside the Session route policy, this round uses B
+- The model list uses the same `sessionController.modelCatalog()` source as the DSH model selector; if the current session model equals A, this round uses B
 
 ## Configuration
 
@@ -98,7 +98,7 @@ Quit DeepSeek Harness fully (Cmd+Q) and reopen. Open **Promote** in the right si
 | Auto review | on | Use the `promote` tool when off |
 | Review timeout | 1200s | Host constant, not in the sidebar |
 
-Missing A/B, A equals B, or both matching the current session model: no review this round, visible failure in chat and sidebar, no self-review. Sessions with a recorded `subagent/model-selection-policy` only expose routes in its allowlist. For legacy sessions without that policy, DSH permits only the current main route; because self-review is forbidden, review is explicitly refused and a new session is required. The current model comes from the active session Agent's selection; older Agents without that API use the session model projection and request header. If the route cannot be confirmed, review is refused with a specific reason; the global default is not substituted.
+Missing A/B, A equals B, or both matching the current session model: no review this round, visible failure in chat and sidebar, no self-review. The secondary-model list uses the same Host catalog as the DSH model selector, independent of the general subagent Session allowlist; a catalog failure is shown explicitly instead of appearing as an empty list. The locked review route still validates the selected provider/model and reasoning effort through the Host. The current model comes from the active session Agent's selection; older Agents without that API use the session model projection and request header. If the route cannot be confirmed, review is refused with a specific reason; the global default is not substituted.
 
 For non-code material review, the original user message must contain the standalone line `non-code scope: non-code materials only`, and either the contract or the original user request must identify the material intent. If the contract omits words such as “document” or “material”, the user request can still establish that intent. Ordinary documents mentioning APIs or tests are no longer misclassified as source code, and negated notes such as “does not involve source calls” do not enable source mode. Configuration files must be read but do not require a fabricated LSP call chain. Code reviews require a trusted LSP. Local acceptance covered a restricted single TypeScript project; trusted queries do not support `tsconfig` `extends`, `references`, or TypeScript plugins. Review fails closed when source snapshots cannot be bound, call-chain evidence is missing, or a `passed: true` verdict still includes a blocking issue; non-blocking notes such as `minor` do not trigger another review.
 

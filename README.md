@@ -4,7 +4,7 @@
   <p><strong>当前对话写执行契约，次模型只读挑错，通过之前不要把初稿当成终稿。</strong></p>
   <p>DeepSeek Harness 桌面插件，外加编译契约的 <code>prompt</code> / promote skill。</p>
   <p><strong>简体中文</strong> · <a href="README.en.md">English</a></p>
-  <p><a href="LICENSE">MIT</a> · 版本 0.1.23</p>
+  <p><a href="LICENSE">MIT</a> · 版本 0.1.25</p>
   <p><a href="#核心能力">核心能力</a> · <a href="#工作方式">工作方式</a> · <a href="#快速开始">快速开始</a> · <a href="#配置">配置</a> · <a href="#验证">验证</a> · <a href="#常见问题">常见问题</a></p>
 </div>
 
@@ -87,7 +87,7 @@ cp -R skills/prompt "$DSH_HOME/skills/prompt"
 
 - 配置次模型 A、B 和各自推理强度（A、B 不能相同）
 - 保存设置（写入 `$DSH_HOME/storages/promote/settings.json`，权限 0600）
-- 当前会话主模型若等于 A，或 A 不在 Session 获准的子模型白名单中，本轮审核改用 B
+- 模型列表与 DSH 模型选择器同源（`sessionController.modelCatalog()`）；当前会话主模型若等于 A，本轮审核改用 B
 
 ## 配置
 
@@ -98,7 +98,7 @@ cp -R skills/prompt "$DSH_HOME/skills/prompt"
 | 自动审核 | 开 | 关闭后可用显式工具 `promote` |
 | 审核超时 | 1200s | Host 常量，不上侧栏 |
 
-未配齐 A/B、A=B、或两者都等于当前会话主模型时，本轮不审，对话和侧栏可见失败，禁止主模型自审。记录过 `subagent/model-selection-policy` 的 Session 只允许选择白名单内路由；未记录该策略的旧 Session 按 DSH 规则只允许当前主模型，而审核又禁止自审，因此会明确拒绝并要求使用新建会话。主模型优先读取活跃会话 Agent 的当前选择；旧版 Agent 没有该接口时读取会话模型投影及请求头。无法确认时显示具体原因并拒绝审核，不以全局默认模型代替。
+未配齐 A/B、A=B、或两者都等于当前会话主模型时，本轮不审，对话和侧栏可见失败，禁止主模型自审。次模型列表与 DSH 模型选择器使用同一 Host 模型目录，不受一般子代理的 Session 白名单限制；目录读取失败会在侧栏明确报错，不会伪装成空列表。审核使用的受信锁路由仍由 Host 校验所选 provider/model 和推理强度。主模型优先读取活跃会话 Agent 的当前选择；旧版 Agent 没有该接口时读取会话模型投影及请求头。无法确认时显示具体原因并拒绝审核，不以全局默认模型代替。
 
 非代码材料审核需要用户在原始消息中单独一行声明 `非代码范围：仅处理非代码材料`，并在契约或用户原话中指明要检查的实际材料；契约省略“文档/材料”等词时，用户原话仍可提供材料意图。普通文档提到 API、测试或部署不再因此被误判为源码任务；“不涉及源码调用/不适用调用链”等否定性说明也不会触发源码模式。配置类文件必须被实际读取，但不会被逼造不存在的 LSP 调用链。源码审核需要可信 LSP；当前本机验收覆盖受限制的单项目 TypeScript，可信查询不支持 `tsconfig` 的 `extends`、`references` 或 TypeScript 插件。无法绑定源码快照、缺少调用链证据，或审核结论包含 `passed: true` 且仍有阻断级 issue 时会拒绝通过；`minor` 等非阻断建议不会触发重复审核。
 
