@@ -55,7 +55,8 @@ test("client inject lists every ctx service read in apply, and registers unique 
   });
   assert.equal(registered.tab.id, "promote");
   assert.equal(registered.tab.kind, "promote");
-  assert.deepEqual(slots.map((row) => row.key || row.name), ["promote", "promote"]);
+  assert.deepEqual(slots.map((row) => row.key || row.name), ["promote", "promote", "promote"]);
+  assert.deepEqual(slots.map((row) => row.name), ["sidebar.right.pane.tab", "sidebar.right.pane.tab.title", "plugins.bundle.config"]);
 });
 
 test("slow save preserves later edits and polling reports disconnect and recovery", async () => {
@@ -243,8 +244,81 @@ test("late refresh cannot overwrite a successful save, including errors and sess
   }
 });
 
+test("plugin page config section reuses the reviewer form and saves the same payload", async () => {
+  let component, cursor = 0, state = [], effects = [], pending = [], resolveSave;
+  const requests = [];
+  const routes = ["saved", "first", "later"].map((model) => ({ provider: "xai", model, name: model, efforts: [{ id: "high", name: "High" }, { id: "low", name: "Low" }] }));
+  const settingsFrom = (modelA) => ({ modelA: { provider: "xai", model: modelA, reasoningEffort: "high" }, modelB: null, maxRevisions: 3, autoReview: true });
+  const payload = (modelA, extra) => Object.assign({ ok: true, settings: settingsFrom(modelA), routes, routesError: null, session: { unassociated: true } }, extra);
+  const React = {
+    Fragment: "fragment",
+    createElement(type, props, ...children) { return { type, props: props || {}, children }; },
+    useState(seed) { const i = cursor++; if (!(i in state)) state[i] = typeof seed === "function" ? seed() : seed;
+      return [state[i], (v) => { state[i] = typeof v === "function" ? v(state[i]) : v; }]; },
+    useRef(value) { const i = cursor++; if (!(i in state)) state[i] = { current: value }; return state[i]; },
+    useEffect(fn, deps) { const i = cursor++, old = effects[i];
+      if (!old || deps.some((v, n) => v !== old.deps[n])) pending.push(() => {
+        if (old?.cleanup) old.cleanup(); effects[i] = { deps, cleanup: fn() };
+      }); },
+  };
+  let registered = null;
+  vm.runInNewContext(readFileSync(new URL("../lib/client.js", import.meta.url), "utf8"), {
+    window: { __ModuleLoader__: { load(module) { module.factory(() => React).apply({
+      effect(fn) { fn(); }, sidebarRightTabs: { register() {} },
+      slots: {
+        inject(_n, fn) { fn(); },
+        register(meta, body) { if (meta.name === "plugins.bundle.config") registered = { meta, body }; },
+      },
+    }); } } },
+    document: { getElementById: () => null, createElement: () => ({}), head: { appendChild() {} } },
+    AbortController,
+    fetch(url, options = {}) {
+      if (options.method === "POST") return new Promise((resolve) => { resolveSave = resolve; requests.push({ url, options, resolve }); });
+      requests.push({ url, options, resolve: null });
+      return new Promise((resolve, reject) => { const entry = requests[requests.length - 1]; entry.resolve = resolve; entry.reject = reject; });
+    },
+  });
+  assert.equal(registered.meta.key, "promote");
+  const flush = () => new Promise((resolve) => setImmediate(resolve));
+  const render = () => { cursor = 0; return registered.body({}); };
+  const runEffects = () => { const batch = pending; pending = []; batch.forEach((fn) => fn()); };
+  const find = (node, pred) => { if (!node || typeof node !== "object") return null; if (pred(node)) return node;
+    for (const child of (node.children || []).flat()) { const found = find(child, pred); if (found) return found; } return null; };
+  const has = (tree, text) => !!find(tree, (n) => typeof n.children[0] === "string" && n.children[0].includes(text));
+  const button = (tree, text) => find(tree, (n) => n.type === "button" && n.children[0] === text);
+
+  render(); runEffects();
+  assert.match(requests[0].url, /^\/api\/promote$/);
+  requests[0].resolve({ ok: true, json: async () => payload("saved") }); await flush();
+  let tree = render();
+  assert.equal(find(tree, (n) => n.props.id === "promote-config-a").props.value, "xai/saved");
+  assert.equal(find(tree, (n) => n.props.id === "promote-a"), null);
+  assert.ok(has(tree, "模型列表与 DSH 模型选择器同源"));
+
+  find(tree, (n) => n.props.id === "promote-config-a").props.onChange({ target: { value: "xai/first" } });
+  tree = render();
+  assert.ok(has(tree, "已改未保存"));
+  button(tree, "保存设置").props.onClick();
+  find(tree, (n) => n.props.id === "promote-config-a").props.onChange({ target: { value: "xai/later" } });
+  const body = JSON.parse(requests[requests.length - 1].options.body);
+  assert.equal(body.modelA, "xai/first");
+  assert.equal(body.effortA, "high");
+  assert.equal(body.maxRevisions, 3);
+  resolveSave({ ok: true, json: async () => payload("first") }); await flush();
+  tree = render();
+  assert.equal(find(tree, (n) => n.props.id === "promote-config-a").props.value, "xai/later");
+  assert.ok(has(tree, "后续修改尚未保存"));
+
+  button(tree, "刷新").props.onClick(); tree = render(); runEffects();
+  requests[requests.length - 1].resolve({ ok: true, json: async () => payload("first", { routesError: "目录不可用" }) }); await flush();
+  tree = render();
+  assert.ok(has(tree, "模型目录不可用"));
+  assert.equal(button(tree, "保存设置").props.disabled, true);
+  assert.equal(find(tree, (n) => n.props.id === "promote-config-a").props.value, "xai/later");
+});
+
 test("package.json client inject includes the right-sidebar slot host", () => {
   const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
-  assert.deepEqual(pkg.dsh.client.inject, ["@deepseek-ai/dsh-client-ui-sidebar-right"]);
+  assert.deepEqual(pkg.dsh.client.inject, ["@deepseek-ai/dsh-client-ui-sidebar-right", "@deepseek-ai/dsh-client-ui-plugin-manager"]);
   assert.equal(pkg.main, "lib/index.js");
 });

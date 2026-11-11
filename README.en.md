@@ -4,7 +4,7 @@
   <p><strong>Write an execution contract in the current chat. A secondary model reviews it read-only. Do not treat a draft as final until it passes.</strong></p>
   <p>A DeepSeek Harness desktop plugin, plus the <code>prompt</code> / promote skill that compiles contracts.</p>
   <p><a href="README.md">简体中文</a> · <strong>English</strong></p>
-  <p><a href="LICENSE">MIT</a> · version 0.1.25</p>
+  <p><a href="LICENSE">MIT</a> · version 0.1.26</p>
   <p><a href="#features">Features</a> · <a href="#how-it-works">How it works</a> · <a href="#quick-start">Quick start</a> · <a href="#configuration">Configuration</a> · <a href="#validation">Validation</a> · <a href="#faq">FAQ</a></p>
 </div>
 
@@ -86,6 +86,7 @@ Say “生成 prompt”, “生成 promote”, or use `/prompt`. The skill only 
 Quit DeepSeek Harness fully (Cmd+Q) and reopen. Open **Promote** in the right sidebar:
 
 - Set secondary models A and B and each reasoning effort (A and B cannot be the same)
+- The same form also appears on the plugin-manager page for promote; both read and write one settings file
 - Save (writes `$DSH_HOME/storages/promote/settings.json`, mode 0600)
 - The model list uses the same `sessionController.modelCatalog()` source as the DSH model selector; if the current session model equals A, this round uses B
 

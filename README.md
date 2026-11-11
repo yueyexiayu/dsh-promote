@@ -4,7 +4,7 @@
   <p><strong>当前对话写执行契约，次模型只读挑错，通过之前不要把初稿当成终稿。</strong></p>
   <p>DeepSeek Harness 桌面插件，外加编译契约的 <code>prompt</code> / promote skill。</p>
   <p><strong>简体中文</strong> · <a href="README.en.md">English</a></p>
-  <p><a href="LICENSE">MIT</a> · 版本 0.1.25</p>
+  <p><a href="LICENSE">MIT</a> · 版本 0.1.26</p>
   <p><a href="#核心能力">核心能力</a> · <a href="#工作方式">工作方式</a> · <a href="#快速开始">快速开始</a> · <a href="#配置">配置</a> · <a href="#验证">验证</a> · <a href="#常见问题">常见问题</a></p>
 </div>
 
@@ -86,6 +86,7 @@ cp -R skills/prompt "$DSH_HOME/skills/prompt"
 完全退出 DeepSeek Harness（⌘Q）再打开。右侧栏打开 **Promote**：
 
 - 配置次模型 A、B 和各自推理强度（A、B 不能相同）
+- 同一个表单也出现在「插件」页的 promote 详情里，两处读写同一份设置
 - 保存设置（写入 `$DSH_HOME/storages/promote/settings.json`，权限 0600）
 - 模型列表与 DSH 模型选择器同源（`sessionController.modelCatalog()`）；当前会话主模型若等于 A，本轮审核改用 B
 
